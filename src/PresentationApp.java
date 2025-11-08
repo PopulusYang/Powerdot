@@ -1,6 +1,7 @@
 // PowerDot - A simple presentation software in Java Swing
 // 文件名：PresentationApp.java
 // 描述：主应用程序类，包含幻灯片编辑器的主要界面和功能实现。
+
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
@@ -43,25 +44,26 @@ import java.awt.GridLayout;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
 public class PresentationApp extends JFrame {
-    private Slide slide;
-    private SlideEditorPanel editorPanel;
-    private final UndoManager undoManager = new UndoManager();
+    private Slide slide;// 当前幻灯片
+    private final SlideEditorPanel editorPanel; // 编辑幻灯片面板对象
+    private final UndoManager undoManager = new UndoManager(); // 撤销管理器
 
-    private JButton prevPageButton;
-    private JButton nextPageButton;
-    private JLabel pageStatusLabel;
-    private SlideshowPlayer.Transition selectedTransition = SlideshowPlayer.Transition.FADE;
-    private JComboBox<String> fontComboBox;
-    private JButton boldButton;
-    private JButton italicButton;
+    private JButton prevPageButton; // 上一页
+    private JButton nextPageButton; // 下一页
+    private JLabel pageStatusLabel; // 页面状态标签
+    private SlideshowPlayer.Transition selectedTransition = SlideshowPlayer.Transition.FADE;// 播放幻灯片时的过渡动画
+    private JComboBox<String> fontComboBox; // 字体选择下拉框
+    private JButton boldButton; // 加粗按钮
+    private JButton italicButton; // 斜体按钮
 
     private JMenuBar menuBar;
     private JToolBar toolBar;
 
-    public enum PageLayout {
-        TITLE_ONLY,
-        TITLE_AND_CONTENT,
-        TWO_COLUMNS
+    public enum PageLayout // 页面布局枚举
+    {
+        TITLE_ONLY, // 仅标题
+        TITLE_AND_CONTENT, // 标题和内容
+        TWO_COLUMNS // 两栏
     }
 
     public UndoManager getUndoManager() {
@@ -69,7 +71,7 @@ public class PresentationApp extends JFrame {
     }
 
     public PresentationApp() {
-        setTitle("简易幻灯片制作与播放软件");
+        setTitle("PowerDot");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(1200, 800);
         setLocationRelativeTo(null);

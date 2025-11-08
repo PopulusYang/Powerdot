@@ -1,5 +1,6 @@
 // SlideEditorPanel类
 // 功能：幻灯片编辑面板，处理元素的绘制和交互
+// 编辑ppt的核心
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
