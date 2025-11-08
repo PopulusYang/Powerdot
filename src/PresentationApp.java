@@ -1,0 +1,642 @@
+// PowerDot - A simple presentation software in Java Swing
+// 文件名：PresentationApp.java
+// 描述：主应用程序类，包含幻灯片编辑器的主要界面和功能实现。
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.util.ArrayList;
+import java.util.List;
+import javax.imageio.ImageIO;
+import javax.swing.BorderFactory;
+import javax.swing.ButtonGroup;
+import javax.swing.JButton;
+import javax.swing.JColorChooser;
+import javax.swing.JComboBox;
+import javax.swing.JDialog;
+import javax.swing.JFileChooser;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JRadioButtonMenuItem;
+import javax.swing.JToolBar;
+import javax.swing.KeyStroke;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Graphics2D;
+import java.awt.GraphicsEnvironment;
+import java.awt.GridLayout;
+import javax.swing.filechooser.FileNameExtensionFilter;
+
+public class PresentationApp extends JFrame {
+    private Slide slide;
+    private SlideEditorPanel editorPanel;
+    private final UndoManager undoManager = new UndoManager();
+
+    private JButton prevPageButton;
+    private JButton nextPageButton;
+    private JLabel pageStatusLabel;
+    private SlideshowPlayer.Transition selectedTransition = SlideshowPlayer.Transition.FADE;
+    private JComboBox<String> fontComboBox;
+    private JButton boldButton;
+    private JButton italicButton;
+
+    private JMenuBar menuBar;
+    private JToolBar toolBar;
+
+    public enum PageLayout {
+        TITLE_ONLY,
+        TITLE_AND_CONTENT,
+        TWO_COLUMNS
+    }
+
+    public UndoManager getUndoManager() {
+        return undoManager;
+    }
+
+    public PresentationApp() {
+        setTitle("简易幻灯片制作与播放软件");
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setSize(1200, 800);
+        setLocationRelativeTo(null);
+
+        slide = new Slide();
+        slide.addPage(new SlidePage());
+
+        createMenuBar();
+        createToolBar();
+
+        editorPanel = new SlideEditorPanel(slide.getCurrentPage());
+        editorPanel.setBackground(Color.WHITE);
+        add(editorPanel, BorderLayout.CENTER);
+
+        createStatusBar();
+        setVisible(true);
+        updatePageStatus();
+    }
+
+    private void createMenuBar() {
+        menuBar = new JMenuBar();
+
+        JMenu fileMenu = new JMenu("文件(F)");
+        fileMenu.setMnemonic(KeyEvent.VK_F);
+        JMenuItem newMenuItem = new JMenuItem("新建(N)");
+        newMenuItem.setMnemonic(KeyEvent.VK_N);
+        newMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N, InputEvent.CTRL_DOWN_MASK));
+        newMenuItem.addActionListener(e -> {
+            this.slide = new Slide();
+            this.slide.addPage(new SlidePage());
+            editorPanel.setSlidePage(this.slide.getCurrentPage());
+            undoManager.clear();
+            updatePageStatus();
+        });
+        JMenuItem openMenuItem = new JMenuItem("打开(O)...");
+        openMenuItem.setMnemonic(KeyEvent.VK_O);
+        openMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O, InputEvent.CTRL_DOWN_MASK));
+        openMenuItem.addActionListener(e -> {
+            openSlide();
+            updatePageStatus();
+        });
+        JMenuItem saveMenuItem = new JMenuItem("保存(S)...");
+        saveMenuItem.setMnemonic(KeyEvent.VK_S);
+        saveMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_DOWN_MASK));
+        saveMenuItem.addActionListener(e -> saveSlide());
+        JMenuItem exportImageMenuItem = new JMenuItem("导出为图片(E)...");
+        exportImageMenuItem.setMnemonic(KeyEvent.VK_E);
+        exportImageMenuItem.addActionListener(e -> exportCurrentPageAsImage());
+        JMenuItem exportPDFMenuItem = new JMenuItem("导出为PDF...");
+        fileMenu.add(newMenuItem);
+        fileMenu.addSeparator();
+        fileMenu.add(openMenuItem);
+        fileMenu.add(saveMenuItem);
+        fileMenu.addSeparator();
+        fileMenu.add(exportImageMenuItem);
+        fileMenu.add(exportPDFMenuItem);
+
+        JMenu editMenu = new JMenu("编辑(E)");
+        editMenu.setMnemonic(KeyEvent.VK_E);
+        JMenuItem undoMenuItem = new JMenuItem("撤销(U)");
+        undoMenuItem.setMnemonic(KeyEvent.VK_U);
+        undoMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, InputEvent.CTRL_DOWN_MASK));
+        undoMenuItem.addActionListener(e -> {
+            undoManager.undo();
+            editorPanel.repaint();
+        });
+        JMenuItem redoMenuItem = new JMenuItem("重做(R)");
+        redoMenuItem.setMnemonic(KeyEvent.VK_R);
+        redoMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Y, InputEvent.CTRL_DOWN_MASK));
+        redoMenuItem.addActionListener(e -> {
+            undoManager.redo();
+            editorPanel.repaint();
+        });
+        editMenu.add(undoMenuItem);
+        editMenu.add(redoMenuItem);
+        editMenu.addSeparator();
+        JMenuItem newPageMenuItem = new JMenuItem("新建空白页面(P)");
+        newPageMenuItem.setMnemonic(KeyEvent.VK_P);
+        newPageMenuItem.addActionListener(e -> {
+            SlidePage newPage = new SlidePage();
+            this.slide.addPage(newPage);
+            this.slide.setCurrentPageIndex(this.slide.getTotalPages() - 1);
+            editorPanel.setSlidePage(newPage);
+            updatePageStatus();
+        });
+        editMenu.add(newPageMenuItem);
+
+        JMenu insertMenu = new JMenu("插入(I)");
+        insertMenu.setMnemonic(KeyEvent.VK_I);
+        JMenuItem insertTextMenuItem = new JMenuItem("文本框(T)");
+        insertTextMenuItem.setMnemonic(KeyEvent.VK_T);
+        insertTextMenuItem.addActionListener(e -> {
+            TextElement newText = new TextElement("双击以编辑文本", 100, 100, 200, 40);
+            Command cmd = new AddElementCommand(editorPanel.getCurrentPage(), newText);
+            undoManager.executeCommand(cmd);
+            editorPanel.repaint();
+        });
+        JMenu insertShapeMenu = new JMenu("基本图形(S)");
+        insertShapeMenu.setMnemonic(KeyEvent.VK_S);
+        JMenuItem insertLineMenuItem = new JMenuItem("直线");
+        insertLineMenuItem.addActionListener(e -> {
+            LineElement newLine = new LineElement(150, 150, 300, 200, Color.BLACK, 2);
+            Command cmd = new AddElementCommand(editorPanel.getCurrentPage(), newLine);
+            undoManager.executeCommand(cmd);
+            editorPanel.repaint();
+        });
+        JMenuItem insertRectMenuItem = new JMenuItem("矩形");
+        insertRectMenuItem.addActionListener(e -> {
+            RectangleElement newRect = new RectangleElement(150, 150, 150, 80, Color.BLACK, Color.LIGHT_GRAY, 1);
+            Command cmd = new AddElementCommand(editorPanel.getCurrentPage(), newRect);
+            undoManager.executeCommand(cmd);
+            editorPanel.repaint();
+        });
+        JMenuItem insertCircleMenuItem = new JMenuItem("圆");
+        insertCircleMenuItem.addActionListener(e -> {
+            CircleElement newCircle = new CircleElement(150, 150, 100, Color.RED, Color.ORANGE, 1);
+            Command cmd = new AddElementCommand(editorPanel.getCurrentPage(), newCircle);
+            undoManager.executeCommand(cmd);
+            editorPanel.repaint();
+        });
+        JMenuItem insertOvalMenuItem = new JMenuItem("椭圆");
+        insertOvalMenuItem.addActionListener(e -> {
+            OvalElement newOval = new OvalElement(150, 150, 150, 80, Color.BLUE, Color.CYAN, 1);
+            Command cmd = new AddElementCommand(editorPanel.getCurrentPage(), newOval);
+            undoManager.executeCommand(cmd);
+            editorPanel.repaint();
+        });
+        insertShapeMenu.add(insertLineMenuItem);
+        insertShapeMenu.add(insertRectMenuItem);
+        insertShapeMenu.add(insertCircleMenuItem);
+        insertShapeMenu.add(insertOvalMenuItem);
+        JMenuItem insertImageMenuItem = new JMenuItem("图片(I)...");
+        insertImageMenuItem.setMnemonic(KeyEvent.VK_I);
+        insertImageMenuItem.addActionListener(e -> insertImage());
+        insertMenu.add(insertTextMenuItem);
+        insertMenu.add(insertShapeMenu);
+        insertMenu.add(insertImageMenuItem);
+
+        JMenu formatMenu = new JMenu("格式(O)");
+        formatMenu.setMnemonic(KeyEvent.VK_O);
+        JMenu borderStyleMenu = new JMenu("边框样式");
+        JMenuItem solidItem = new JMenuItem("实线");
+        solidItem.addActionListener(e -> setBorderStyle(null));
+        JMenuItem dashedItem = new JMenuItem("虚线");
+        dashedItem.addActionListener(e -> setBorderStyle(new float[]{9.0f, 3.0f}));
+        JMenuItem dottedItem = new JMenuItem("点线");
+        dottedItem.addActionListener(e -> setBorderStyle(new float[]{1.0f, 2.0f}));
+        borderStyleMenu.add(solidItem);
+        borderStyleMenu.add(dashedItem);
+        borderStyleMenu.add(dottedItem);
+        formatMenu.add(borderStyleMenu);
+
+        JMenu viewMenu = new JMenu("视图(V)");
+        viewMenu.setMnemonic(KeyEvent.VK_V);
+        JMenuItem themeMenuItem = new JMenuItem("更改主题颜色...");
+        themeMenuItem.addActionListener(e -> {
+            ThemeChooserDialog dialog = new ThemeChooserDialog(this);
+            dialog.setVisible(true);
+            if (dialog.isConfirmed()) {
+                applyTheme(dialog.getPrimaryColor(), dialog.getBackgroundColor());
+            }
+        });
+        viewMenu.add(themeMenuItem);
+
+        JMenu layoutMenu = new JMenu("应用页面布局");
+        JMenuItem titleOnlyItem = new JMenuItem("仅标题");
+        titleOnlyItem.addActionListener(e -> applyLayout(PageLayout.TITLE_ONLY));
+        JMenuItem titleContentItem = new JMenuItem("标题和内容");
+        titleContentItem.addActionListener(e -> applyLayout(PageLayout.TITLE_AND_CONTENT));
+        JMenuItem twoColumnsItem = new JMenuItem("两栏");
+        twoColumnsItem.addActionListener(e -> applyLayout(PageLayout.TWO_COLUMNS));
+        layoutMenu.add(titleOnlyItem);
+        layoutMenu.add(titleContentItem);
+        layoutMenu.add(twoColumnsItem);
+        viewMenu.add(layoutMenu);
+
+        JMenu slideshowMenu = new JMenu("放映(S)");
+        slideshowMenu.setMnemonic(KeyEvent.VK_S);
+        JMenuItem playFromStartMenuItem = new JMenuItem("从头开始");
+        playFromStartMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0));
+        playFromStartMenuItem.addActionListener(e -> playSlideshow(0));
+        slideshowMenu.add(playFromStartMenuItem);
+
+        JMenu transitionMenu = new JMenu("动画(A)");
+        transitionMenu.setMnemonic(KeyEvent.VK_A);
+        ButtonGroup transitionGroup = new ButtonGroup();
+        JRadioButtonMenuItem fadeItem = new JRadioButtonMenuItem("淡入淡出", true);
+        fadeItem.addActionListener(e -> selectedTransition = SlideshowPlayer.Transition.FADE);
+        JRadioButtonMenuItem slideItem = new JRadioButtonMenuItem("滑动");
+        slideItem.addActionListener(e -> selectedTransition = SlideshowPlayer.Transition.SLIDE);
+        JRadioButtonMenuItem zoomItem = new JRadioButtonMenuItem("缩放");
+        zoomItem.addActionListener(e -> selectedTransition = SlideshowPlayer.Transition.ZOOM);
+        transitionGroup.add(fadeItem);
+        transitionGroup.add(slideItem);
+        transitionGroup.add(zoomItem);
+        transitionMenu.add(fadeItem);
+        transitionMenu.add(slideItem);
+        transitionMenu.add(zoomItem);
+
+        menuBar.add(fileMenu);
+        menuBar.add(editMenu);
+        menuBar.add(insertMenu);
+        menuBar.add(formatMenu);
+        menuBar.add(viewMenu);
+        menuBar.add(slideshowMenu);
+        menuBar.add(transitionMenu);
+        setJMenuBar(menuBar);
+    }
+
+    private void setBorderStyle(float[] dashArray) {
+        SlideElement selected = editorPanel.getSelectedElement();
+        if (selected instanceof ShapeElement) {
+            ShapeElement shape = (ShapeElement) selected;
+            float[] oldDashArray = shape.getBorderStyle();
+            Command cmd = new ChangeElementPropertyCommand(() -> shape.setBorderStyle(dashArray), () -> shape.setBorderStyle(oldDashArray));
+            undoManager.executeCommand(cmd);
+            editorPanel.repaint();
+        } else {
+            JOptionPane.showMessageDialog(this, "请先选择一个基本图形（矩形、圆、椭圆）。");
+        }
+    }
+
+    private void createToolBar() {
+        toolBar = new JToolBar();
+        JButton colorButton = new JButton("颜色");
+        colorButton.setToolTipText("设置选中元素的颜色");
+        colorButton.setFocusPainted(false);
+        colorButton.addActionListener(e -> {
+            SlideElement selected = editorPanel.getSelectedElement();
+            if (selected == null) {
+                JOptionPane.showMessageDialog(this, "请先选择一个元素。");
+                return;
+            }
+            Color newColor = JColorChooser.showDialog(this, "选择颜色", Color.BLACK);
+            if (newColor == null) { return; }
+
+            if (selected instanceof TextElement) {
+                TextElement textElem = (TextElement) selected;
+                Color oldColor = textElem.getColor();
+                Command cmd = new ChangeElementPropertyCommand(() -> textElem.setColor(newColor), () -> textElem.setColor(oldColor));
+                undoManager.executeCommand(cmd);
+            } else if (selected instanceof LineElement) {
+                LineElement lineElem = (LineElement) selected;
+                Color oldColor = lineElem.getColor();
+                Command cmd = new ChangeElementPropertyCommand(() -> lineElem.setColor(newColor), () -> lineElem.setColor(oldColor));
+                undoManager.executeCommand(cmd);
+            } else if (selected instanceof ShapeElement) {
+                ShapeElement shape = (ShapeElement) selected;
+                Object[] options = {"边框", "填充"};
+                int choice = JOptionPane.showOptionDialog(this, "修改哪个部分的颜色？", "选择颜色类型", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+                if (choice == 0) {
+                    Color oldColor = shape.getBorderColor();
+                    Command cmd = new ChangeElementPropertyCommand(() -> shape.setBorderColor(newColor), () -> shape.setBorderColor(oldColor));
+                    undoManager.executeCommand(cmd);
+                } else {
+                    Color oldColor = shape.getFillColor();
+                    Command cmd = new ChangeElementPropertyCommand(() -> shape.setFillColor(newColor), () -> shape.setFillColor(oldColor));
+                    undoManager.executeCommand(cmd);
+                }
+            }
+            editorPanel.repaint();
+        });
+        toolBar.add(colorButton);
+        toolBar.addSeparator();
+
+        String[] fontNames = GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames();
+        fontComboBox = new JComboBox<>(fontNames);
+        fontComboBox.setToolTipText("选择字体");
+        fontComboBox.setMaximumSize(new Dimension(150, 30));
+        fontComboBox.setFocusable(false);
+        fontComboBox.addActionListener(e -> {
+            String selectedFontName = (String) fontComboBox.getSelectedItem();
+            if (selectedFontName != null) {
+                applyFontChange(selectedFontName, -1, -1);
+            }
+        });
+        toolBar.add(new JLabel(" 字体: "));
+        toolBar.add(fontComboBox);
+        toolBar.addSeparator();
+
+        boldButton = new JButton("B");
+        boldButton.setFont(new Font("Arial", Font.BOLD, 14));
+        boldButton.setToolTipText("加粗");
+        boldButton.setFocusPainted(false);
+        boldButton.addActionListener(e -> applyFontChange(null, Font.BOLD, -1));
+        toolBar.add(boldButton);
+
+        italicButton = new JButton("I");
+        italicButton.setFont(new Font("Arial", Font.ITALIC, 14));
+        italicButton.setToolTipText("斜体");
+        italicButton.setFocusPainted(false);
+        italicButton.addActionListener(e -> applyFontChange(null, Font.ITALIC, -1));
+        toolBar.add(italicButton);
+
+        add(toolBar, BorderLayout.NORTH);
+    }
+
+    private void applyFontChange(String newName, int styleToToggle, int newSize) {
+        SlideElement selected = editorPanel.getSelectedElement();
+        if (selected instanceof TextElement) {
+            TextElement textElem = (TextElement) selected;
+            Font oldFont = textElem.getFont();
+
+            String fontName = (newName != null) ? newName : oldFont.getName();
+            int style = oldFont.getStyle();
+            if (styleToToggle != -1) {
+                style = style ^ styleToToggle;
+            }
+            int size = (newSize != -1) ? newSize : oldFont.getSize();
+
+            Font newFont = new Font(fontName, style, size);
+
+            Command cmd = new ChangeElementPropertyCommand(
+                    () -> textElem.setFont(newFont),
+                    () -> textElem.setFont(oldFont)
+            );
+            undoManager.executeCommand(cmd);
+            editorPanel.repaint();
+        } else {
+            if (styleToToggle != -1 || newName != null) {
+                JOptionPane.showMessageDialog(this, "请选择一个文本框。");
+            }
+        }
+    }
+
+    private void createStatusBar() {
+        JPanel statusBar = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 5));
+        statusBar.setBorder(BorderFactory.createEtchedBorder());
+
+        prevPageButton = new JButton("<");
+        nextPageButton = new JButton(">");
+        pageStatusLabel = new JLabel();
+        pageStatusLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        pageStatusLabel.setPreferredSize(new Dimension(100, 20));
+
+        prevPageButton.addActionListener(e -> {
+            if (slide.previousPage()) {
+                editorPanel.setSlidePage(slide.getCurrentPage());
+                updatePageStatus();
+            }
+        });
+
+        nextPageButton.addActionListener(e -> {
+            if (slide.nextPage()) {
+                editorPanel.setSlidePage(slide.getCurrentPage());
+                updatePageStatus();
+            }
+        });
+
+        statusBar.add(prevPageButton);
+        statusBar.add(pageStatusLabel);
+        statusBar.add(nextPageButton);
+
+        add(statusBar, BorderLayout.SOUTH);
+    }
+
+    private void updatePageStatus() {
+        if (slide == null || slide.getTotalPages() == 0) {
+            pageStatusLabel.setText("第 0 / 0 页");
+            prevPageButton.setEnabled(false);
+            nextPageButton.setEnabled(false);
+        } else {
+            int currentPage = slide.getCurrentPageIndex() + 1;
+            int totalPages = slide.getTotalPages();
+            pageStatusLabel.setText("第 " + currentPage + " / " + totalPages + " 页");
+            prevPageButton.setEnabled(currentPage > 1);
+            nextPageButton.setEnabled(currentPage < totalPages);
+        }
+    }
+
+    private void insertImage() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("选择要插入的图片");
+        fileChooser.setFileFilter(new FileNameExtensionFilter("图片文件", "png", "jpg", "jpeg", "gif"));
+        if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            try {
+                ImageElement newImage = new ImageElement(100, 100, fileChooser.getSelectedFile().getAbsolutePath());
+                Command cmd = new AddElementCommand(editorPanel.getCurrentPage(), newImage);
+                undoManager.executeCommand(cmd);
+                editorPanel.repaint();
+            } catch (IOException ex) {
+                JOptionPane.showMessageDialog(this, "图片加载失败: " + ex.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void saveSlide() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("保存幻灯片");
+        fileChooser.setFileFilter(new FileNameExtensionFilter("幻灯片文件 (*.slide)", "slide"));
+        if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+            File fileToSave = fileChooser.getSelectedFile();
+            if (!fileToSave.getName().toLowerCase().endsWith(".slide")) {
+                fileToSave = new File(fileToSave.getParentFile(), fileToSave.getName() + ".slide");
+            }
+            try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(fileToSave))) {
+                oos.writeObject(slide);
+                JOptionPane.showMessageDialog(this, "保存成功！");
+            } catch (IOException ex) {
+                ex.printStackTrace();
+                JOptionPane.showMessageDialog(this, "保存失败: " + ex.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void openSlide() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("打开幻灯片");
+        fileChooser.setFileFilter(new FileNameExtensionFilter("幻灯片文件 (*.slide)", "slide"));
+        if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            File fileToOpen = fileChooser.getSelectedFile();
+            try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(fileToOpen))) {
+                slide = (Slide) ois.readObject();
+                editorPanel.setSlidePage(slide.getCurrentPage());
+                undoManager.clear();
+                JOptionPane.showMessageDialog(this, "打开成功！");
+            } catch (IOException | ClassNotFoundException ex) {
+                ex.printStackTrace();
+                JOptionPane.showMessageDialog(this, "打开失败: " + ex.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void exportCurrentPageAsImage() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("导出为PNG图片");
+        fileChooser.setFileFilter(new FileNameExtensionFilter("PNG 图片 (*.png)", "png"));
+        if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+            File fileToSave = fileChooser.getSelectedFile();
+            if (!fileToSave.getName().toLowerCase().endsWith(".png")) {
+                fileToSave = new File(fileToSave.getParentFile(), fileToSave.getName() + ".png");
+            }
+            try {
+                BufferedImage image = new BufferedImage(editorPanel.getWidth(), editorPanel.getHeight(), BufferedImage.TYPE_INT_ARGB);
+                Graphics2D g2d = image.createGraphics();
+                editorPanel.paint(g2d);
+                g2d.dispose();
+                ImageIO.write(image, "png", fileToSave);
+                JOptionPane.showMessageDialog(this, "导出成功！");
+            } catch (IOException ex) {
+                ex.printStackTrace();
+                JOptionPane.showMessageDialog(this, "导出失败: " + ex.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void playSlideshow(int startIndex) {
+        if (slide.getAllPages().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "没有可播放的幻灯片页面。");
+            return;
+        }
+        SlideshowPlayer player = new SlideshowPlayer(this, slide, startIndex, selectedTransition);
+        player.setVisible(true);
+    }
+
+    private void applyTheme(Color primary, Color background) {
+        if (primary != null) {
+            menuBar.setBackground(primary);
+            toolBar.setBackground(primary);
+        }
+        if (background != null) {
+            editorPanel.setBackground(background);
+        }
+    }
+
+    private void applyLayout(PageLayout layout) {
+        SlidePage currentPage = editorPanel.getCurrentPage();
+        if (currentPage == null) return;
+
+        List<SlideElement> newElements = new ArrayList<>();
+        switch (layout) {
+            case TITLE_ONLY:
+                newElements.add(new TextElement("点击添加标题", 50, 50, 1100, 100));
+                break;
+            case TITLE_AND_CONTENT:
+                newElements.add(new TextElement("点击添加标题", 50, 50, 1100, 100));
+                newElements.add(new TextElement("点击添加文本", 50, 180, 1100, 550));
+                break;
+            case TWO_COLUMNS:
+                newElements.add(new TextElement("点击添加标题", 50, 50, 1100, 100));
+                newElements.add(new TextElement("点击添加文本", 50, 180, 540, 550));
+                newElements.add(new TextElement("点击添加文本", 610, 180, 540, 550));
+                break;
+        }
+
+        Command cmd = new ApplyLayoutCommand(currentPage, newElements);
+        undoManager.executeCommand(cmd);
+        editorPanel.repaint();
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(PresentationApp::new);
+    }
+}
+
+class ThemeChooserDialog extends JDialog {
+    private Color primaryColor;
+    private Color backgroundColor;
+    private boolean confirmed = false;
+
+    public ThemeChooserDialog(JFrame owner) {
+        super(owner, "选择主题颜色", true);
+
+        primaryColor = owner.getJMenuBar().getBackground();
+        backgroundColor = owner.getContentPane().getBackground();
+
+        JPanel panel = new JPanel(new GridLayout(3, 2, 10, 10));
+        panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        JButton primaryButton = new JButton("选择主色调 (菜单/工具栏)");
+        JLabel primaryPreview = new JLabel();
+        primaryPreview.setOpaque(true);
+        primaryPreview.setBackground(primaryColor);
+        primaryPreview.setBorder(BorderFactory.createLineBorder(Color.BLACK));
+
+        JButton backgroundButton = new JButton("选择背景色 (编辑区)");
+        JLabel backgroundPreview = new JLabel();
+        backgroundPreview.setOpaque(true);
+        backgroundPreview.setBackground(backgroundColor);
+        backgroundPreview.setBorder(BorderFactory.createLineBorder(Color.BLACK));
+
+        primaryButton.addActionListener(e -> {
+            Color chosen = JColorChooser.showDialog(this, "选择主色调", primaryColor);
+            if (chosen != null) {
+                primaryColor = chosen;
+                primaryPreview.setBackground(primaryColor);
+            }
+        });
+
+        backgroundButton.addActionListener(e -> {
+            Color chosen = JColorChooser.showDialog(this, "选择背景色", backgroundColor);
+            if (chosen != null) {
+                backgroundColor = chosen;
+                backgroundPreview.setBackground(backgroundColor);
+            }
+        });
+
+        JButton okButton = new JButton("确定");
+        okButton.addActionListener(e -> {
+            confirmed = true;
+            dispose();
+        });
+
+        JButton cancelButton = new JButton("取消");
+        cancelButton.addActionListener(e -> dispose());
+
+        panel.add(primaryButton);
+        panel.add(primaryPreview);
+        panel.add(backgroundButton);
+        panel.add(backgroundPreview);
+        panel.add(okButton);
+        panel.add(cancelButton);
+
+        setContentPane(panel);
+        pack();
+        setLocationRelativeTo(owner);
+    }
+
+    public boolean isConfirmed() {
+        return confirmed;
+    }
+
+    public Color getPrimaryColor() {
+        return primaryColor;
+    }
+
+    public Color getBackgroundColor() {
+        return backgroundColor;
+    }
+}
