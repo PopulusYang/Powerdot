@@ -129,30 +129,39 @@ public class SlideEditorPanel extends JPanel {
     // 内部类：处理鼠标交互
     private class InteractionHandler extends MouseAdapter implements MouseMotionListener {
         private final SlideEditorPanel panel;
+        /****存储原始元素内容与状态****/
         private String originalText;
-        private Rectangle originalRectBounds;
+        private Rectangle originalRectBounds;// 用于存储调整大小前的边界
+        // 记录直线调整前的起点和终点
         private Point originalLineStart;
         private Point originalLineEnd;
 
         public InteractionHandler(SlideEditorPanel panel) {
-            this.panel = panel;
+            this.panel = panel;// 保存对编辑面板的引用
         }
 
+        // 鼠标按下事件处理
         @Override
         public void mousePressed(MouseEvent e) {
-            panel.lastMousePoint = e.getPoint();
-            SlideElement elementUnderMouse = findElementAt(e.getPoint());
-
-            if (panel.selectedElement != null) {
-                boolean clickedOnHandle = false;
+            panel.lastMousePoint = e.getPoint();// 获取鼠标位置
+            SlideElement elementUnderMouse = findElementAt(e.getPoint());//获取当前鼠标位置下的元素
+            /*选中*/
+            if (panel.selectedElement != null) //确保当前有选中元素
+            {
+                boolean clickedOnHandle = false; //标志位，表示是否点击在控制点上
+                // 两种可能，点在控制点上和点到元素但没点在控制点上
+                // 直线处理
                 if (panel.selectedElement instanceof LineElement) {
                     LineElement line = (LineElement) panel.selectedElement;
                     if (line.getStartHandle().contains(panel.lastMousePoint) || line.getEndHandle().contains(panel.lastMousePoint)) {
                         clickedOnHandle = true;
+                        // 存储直线的起点和终点
                         originalLineStart = line.getStartPoint();
                         originalLineEnd = line.getEndPoint();
                     }
-                } else {
+                }
+                else// 非直线，矩形处理
+                {
                     panel.updateResizeHandlesForRect();
                     for (Rectangle handle : resizeHandles) {
                         if (handle.contains(panel.lastMousePoint)) {
@@ -161,10 +170,11 @@ public class SlideEditorPanel extends JPanel {
                         }
                     }
                     if (clickedOnHandle) {
+                        // 存储变化前矩形的边界
                         originalRectBounds = new Rectangle(panel.selectedElement.getBounds());
                     }
                 }
-
+                //没有点击在控制点上，且点击在选中元素上，存储原始状态
                 if (!clickedOnHandle && elementUnderMouse == panel.selectedElement) {
                     if (elementUnderMouse instanceof LineElement) {
                         originalLineStart = ((LineElement) elementUnderMouse).getStartPoint();
@@ -174,7 +184,7 @@ public class SlideEditorPanel extends JPanel {
                     }
                 }
             }
-
+            /*缩放*/
             if (panel.selectedElement != null) {
                 if (panel.selectedElement instanceof LineElement) {
                     LineElement line = (LineElement) panel.selectedElement;
@@ -199,7 +209,7 @@ public class SlideEditorPanel extends JPanel {
                     }
                 }
             }
-
+            /*移动或编辑文本*/
             if (elementUnderMouse != null) {
                 if (e.getClickCount() == 2 && elementUnderMouse instanceof TextElement) {
                     TextElement textElement = (TextElement) elementUnderMouse;
@@ -227,7 +237,7 @@ public class SlideEditorPanel extends JPanel {
             }
             panel.repaint();
         }
-
+        // 鼠标释放事件处理
         @Override
         public void mouseReleased(MouseEvent e) {
             if ((currentState == State.MOVING || currentState == State.RESIZING) && selectedElement != null) {
@@ -259,7 +269,7 @@ public class SlideEditorPanel extends JPanel {
             originalLineStart = null;
             originalLineEnd = null;
         }
-
+        // 鼠标拖动事件处理
         @Override
         public void mouseDragged(MouseEvent e) {
             if (panel.lastMousePoint == null) return;
@@ -282,7 +292,7 @@ public class SlideEditorPanel extends JPanel {
             panel.lastMousePoint = e.getPoint();
             panel.repaint();
         }
-
+        // 鼠标移动事件处理
         @Override
         public void mouseMoved(MouseEvent e) {
             if (panel.selectedElement != null) {
@@ -313,8 +323,10 @@ public class SlideEditorPanel extends JPanel {
             return ((PresentationApp) SwingUtilities.getWindowAncestor(panel)).getUndoManager();
         }
 
+        // 根据鼠标位置查找元素，返回当前鼠标所指的元素
         private SlideElement findElementAt(Point p) {
             List<SlideElement> elements = panel.currentPage.getElements();
+            // 逐个扫描
             for (int i = elements.size() - 1; i >= 0; i--) {
                 if (elements.get(i).contains(p)) {
                     return elements.get(i);
@@ -323,18 +335,19 @@ public class SlideEditorPanel extends JPanel {
             return null;
         }
 
+        // 根据控制点索引获取对应的调整大小光标
         private Cursor getResizeCursor(int handleIndex) {
-            switch (handleIndex) {
-                case 0: return Cursor.getPredefinedCursor(Cursor.NW_RESIZE_CURSOR);
-                case 1: return Cursor.getPredefinedCursor(Cursor.N_RESIZE_CURSOR);
-                case 2: return Cursor.getPredefinedCursor(Cursor.NE_RESIZE_CURSOR);
-                case 3: return Cursor.getPredefinedCursor(Cursor.E_RESIZE_CURSOR);
-                case 4: return Cursor.getPredefinedCursor(Cursor.SE_RESIZE_CURSOR);
-                case 5: return Cursor.getPredefinedCursor(Cursor.S_RESIZE_CURSOR);
-                case 6: return Cursor.getPredefinedCursor(Cursor.SW_RESIZE_CURSOR);
-                case 7: return Cursor.getPredefinedCursor(Cursor.W_RESIZE_CURSOR);
-                default: return Cursor.getDefaultCursor();
-            }
+            return switch (handleIndex) {
+                case 0 -> Cursor.getPredefinedCursor(Cursor.NW_RESIZE_CURSOR);
+                case 1 -> Cursor.getPredefinedCursor(Cursor.N_RESIZE_CURSOR);
+                case 2 -> Cursor.getPredefinedCursor(Cursor.NE_RESIZE_CURSOR);
+                case 3 -> Cursor.getPredefinedCursor(Cursor.E_RESIZE_CURSOR);
+                case 4 -> Cursor.getPredefinedCursor(Cursor.SE_RESIZE_CURSOR);
+                case 5 -> Cursor.getPredefinedCursor(Cursor.S_RESIZE_CURSOR);
+                case 6 -> Cursor.getPredefinedCursor(Cursor.SW_RESIZE_CURSOR);
+                case 7 -> Cursor.getPredefinedCursor(Cursor.W_RESIZE_CURSOR);
+                default -> Cursor.getDefaultCursor();
+            };
         }
 
         private void resizeRectElement(int dx, int dy) {
