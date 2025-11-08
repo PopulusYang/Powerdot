@@ -23,9 +23,9 @@ public class SlideEditorPanel extends JPanel {
     * @***********@***********@
     */
     // 此处handle应该是指调整大小的控制点
-    private static final int HANDLE_SIZE = 8;//八个控制点
+    private static final int HANDLE_SIZE = 8;//控制点位边长为4的正方形
 
-    private Rectangle[] resizeHandles = new Rectangle[HANDLE_SIZE];
+    private Rectangle[] resizeHandles = new Rectangle[8];// 八个控制点，八个正方形
     private int activeHandle = -1;// 当前活动的控制点索引
 
     public SlideEditorPanel(SlidePage page)//构造函数
@@ -75,35 +75,46 @@ public class SlideEditorPanel extends JPanel {
                     LineElement line = (LineElement) selectedElement;
                     Rectangle startHandle = line.getStartHandle();
                     Rectangle endHandle = line.getEndHandle();
-                    g2d.setColor(Color.ORANGE);
+                    g2d.setColor(Color.ORANGE);// 端点颜色
+                    // 绘制控制点
                     g2d.fillRect(startHandle.x, startHandle.y, startHandle.width, startHandle.height);
                     g2d.fillRect(endHandle.x, endHandle.y, endHandle.width, endHandle.height);
-                    g2d.setColor(Color.BLACK);
+
+                    g2d.setColor(Color.BLACK);// 控制点边框颜色
                     g2d.drawRect(startHandle.x, startHandle.y, startHandle.width, startHandle.height);
                     g2d.drawRect(endHandle.x, endHandle.y, endHandle.width, endHandle.height);
-                } else {
-                    Rectangle bounds = selectedElement.getBounds();
+                } else //其他元素，绘制边框和八个控制点
+                {
+                    Rectangle bounds = selectedElement.getBounds();// 获取元素边界，四边形控制边界
                     g2d.setColor(Color.BLUE);
-                    g2d.setStroke(new BasicStroke(1, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 0, new float[]{9}, 0));
+                    //线宽为1，末端方形截断，线条交会处切角连接，miterlimit不生效，虚线段9像素，间隔9像素，偏移0
+                    g2d.setStroke(new BasicStroke(4f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 10f, new float[]{9f, 9f}, 0f));
+                    // 绘制边框
                     g2d.drawRect(bounds.x - 1, bounds.y - 1, bounds.width + 2, bounds.height + 2);
+
+                    // 更新控制点位置
                     updateResizeHandlesForRect();
+
+                    // 绘制控制点
                     g2d.setColor(Color.WHITE);
                     g2d.setStroke(new BasicStroke(1));
                     for (Rectangle handle : resizeHandles) {
                         g2d.fillRect(handle.x, handle.y, handle.width, handle.height);
-                        g2d.setColor(Color.BLACK);
+                        g2d.setColor(Color.BLACK);//控制点边框（黑色）
                         g2d.drawRect(handle.x, handle.y, handle.width, handle.height);
                         g2d.setColor(Color.WHITE);
                     }
                 }
-                g2d.dispose();
+                g2d.dispose();// 释放Graphics2D对象
             }
         }
     }
 
-    private void updateResizeHandlesForRect() {
+    // 更新矩形元素的八个控制点位置
+    private void updateResizeHandlesForRect()
+    {
         if (selectedElement == null) return;
-        Rectangle bounds = selectedElement.getBounds();
+        Rectangle bounds = selectedElement.getBounds();// 获取元素边界
         int halfHandle = HANDLE_SIZE / 2;
         resizeHandles[0].setBounds(bounds.x - halfHandle, bounds.y - halfHandle, HANDLE_SIZE, HANDLE_SIZE);
         resizeHandles[1].setBounds(bounds.x + bounds.width / 2 - halfHandle, bounds.y - halfHandle, HANDLE_SIZE, HANDLE_SIZE);

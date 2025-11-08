@@ -70,7 +70,7 @@ public class LineElement extends SlideElement {
     }
 
     // 获取起点和终点的控制点矩形区域
-    //
+    // 起点-handle的一半大小偏移，确保控制点以起点为中心
     public Rectangle getStartHandle() {
         int halfHandle = HANDLE_SIZE / 2;
         return new Rectangle(x - halfHandle, y - halfHandle, HANDLE_SIZE, HANDLE_SIZE);
