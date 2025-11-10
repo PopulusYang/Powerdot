@@ -102,7 +102,7 @@ public class PresentationApp extends JFrame {
         newMenuItem.setMnemonic(KeyEvent.VK_N);
         newMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N, InputEvent.CTRL_DOWN_MASK));// 设置全局快捷键Ctrl+N
         // lambda表达式简化代码
-        newMenuItem.addActionListener(e ->
+        newMenuItem.addActionListener(_ ->
         {
             // 新建幻灯片
             this.slide = new Slide();
@@ -114,17 +114,17 @@ public class PresentationApp extends JFrame {
         JMenuItem openMenuItem = new JMenuItem("打开(O)...");
         openMenuItem.setMnemonic(KeyEvent.VK_O);
         openMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O, InputEvent.CTRL_DOWN_MASK));
-        openMenuItem.addActionListener(e -> {
+        openMenuItem.addActionListener(_ -> {
             openSlide();
             updatePageStatus();
         });
         JMenuItem saveMenuItem = new JMenuItem("保存(S)...");
         saveMenuItem.setMnemonic(KeyEvent.VK_S);
         saveMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_DOWN_MASK));
-        saveMenuItem.addActionListener(e -> saveSlide());
+        saveMenuItem.addActionListener(_ -> saveSlide());
         JMenuItem exportImageMenuItem = new JMenuItem("导出为图片(E)...");
         exportImageMenuItem.setMnemonic(KeyEvent.VK_E);
-        exportImageMenuItem.addActionListener(e -> exportCurrentPageAsImage());
+        exportImageMenuItem.addActionListener(_ -> exportCurrentPageAsImage());
         JMenuItem exportPDFMenuItem = new JMenuItem("导出为PDF...");
         fileMenu.add(newMenuItem);
         fileMenu.addSeparator();
@@ -139,14 +139,14 @@ public class PresentationApp extends JFrame {
         JMenuItem undoMenuItem = new JMenuItem("撤销(U)");
         undoMenuItem.setMnemonic(KeyEvent.VK_U);
         undoMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, InputEvent.CTRL_DOWN_MASK));
-        undoMenuItem.addActionListener(e -> {
+        undoMenuItem.addActionListener(_ -> {
             undoManager.undo();
             editorPanel.repaint();
         });
         JMenuItem redoMenuItem = new JMenuItem("重做(R)");
         redoMenuItem.setMnemonic(KeyEvent.VK_R);
         redoMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Y, InputEvent.CTRL_DOWN_MASK));
-        redoMenuItem.addActionListener(e -> {
+        redoMenuItem.addActionListener(_ -> {
             undoManager.redo();
             editorPanel.repaint();
         });
@@ -155,7 +155,7 @@ public class PresentationApp extends JFrame {
         editMenu.addSeparator();
         JMenuItem newPageMenuItem = new JMenuItem("新建空白页面(P)");
         newPageMenuItem.setMnemonic(KeyEvent.VK_P);
-        newPageMenuItem.addActionListener(e -> {
+        newPageMenuItem.addActionListener(_ -> {
             SlidePage newPage = new SlidePage();
             this.slide.addPage(newPage);
             this.slide.setCurrentPageIndex(this.slide.getTotalPages() - 1);
@@ -168,7 +168,7 @@ public class PresentationApp extends JFrame {
         insertMenu.setMnemonic(KeyEvent.VK_I);
         JMenuItem insertTextMenuItem = new JMenuItem("文本框(T)");
         insertTextMenuItem.setMnemonic(KeyEvent.VK_T);
-        insertTextMenuItem.addActionListener(e -> {
+        insertTextMenuItem.addActionListener(_ -> {
             TextElement newText = new TextElement("双击以编辑文本", 100, 100, 200, 40);
             Command cmd = new AddElementCommand(editorPanel.getCurrentPage(), newText);
             undoManager.executeCommand(cmd);
@@ -177,28 +177,28 @@ public class PresentationApp extends JFrame {
         JMenu insertShapeMenu = new JMenu("基本图形(S)");
         insertShapeMenu.setMnemonic(KeyEvent.VK_S);
         JMenuItem insertLineMenuItem = new JMenuItem("直线");
-        insertLineMenuItem.addActionListener(e -> {
+        insertLineMenuItem.addActionListener(_ -> {
             LineElement newLine = new LineElement(150, 150, 300, 200, Color.BLACK, 2);
             Command cmd = new AddElementCommand(editorPanel.getCurrentPage(), newLine);
             undoManager.executeCommand(cmd);
             editorPanel.repaint();
         });
         JMenuItem insertRectMenuItem = new JMenuItem("矩形");
-        insertRectMenuItem.addActionListener(e -> {
+        insertRectMenuItem.addActionListener(_ -> {
             RectangleElement newRect = new RectangleElement(150, 150, 150, 80, Color.BLACK, Color.LIGHT_GRAY, 1);
             Command cmd = new AddElementCommand(editorPanel.getCurrentPage(), newRect);
             undoManager.executeCommand(cmd);
             editorPanel.repaint();
         });
         JMenuItem insertCircleMenuItem = new JMenuItem("圆");
-        insertCircleMenuItem.addActionListener(e -> {
+        insertCircleMenuItem.addActionListener(_ -> {
             CircleElement newCircle = new CircleElement(150, 150, 100, Color.RED, Color.ORANGE, 1);
             Command cmd = new AddElementCommand(editorPanel.getCurrentPage(), newCircle);
             undoManager.executeCommand(cmd);
             editorPanel.repaint();
         });
         JMenuItem insertOvalMenuItem = new JMenuItem("椭圆");
-        insertOvalMenuItem.addActionListener(e -> {
+        insertOvalMenuItem.addActionListener(_ -> {
             OvalElement newOval = new OvalElement(150, 150, 150, 80, Color.BLUE, Color.CYAN, 1);
             Command cmd = new AddElementCommand(editorPanel.getCurrentPage(), newOval);
             undoManager.executeCommand(cmd);
@@ -210,7 +210,7 @@ public class PresentationApp extends JFrame {
         insertShapeMenu.add(insertOvalMenuItem);
         JMenuItem insertImageMenuItem = new JMenuItem("图片(I)...");
         insertImageMenuItem.setMnemonic(KeyEvent.VK_I);
-        insertImageMenuItem.addActionListener(e -> insertImage());
+        insertImageMenuItem.addActionListener(_ -> insertImage());
         insertMenu.add(insertTextMenuItem);
         insertMenu.add(insertShapeMenu);
         insertMenu.add(insertImageMenuItem);
@@ -219,11 +219,11 @@ public class PresentationApp extends JFrame {
         formatMenu.setMnemonic(KeyEvent.VK_O);
         JMenu borderStyleMenu = new JMenu("边框样式");
         JMenuItem solidItem = new JMenuItem("实线");
-        solidItem.addActionListener(e -> setBorderStyle(null));
+        solidItem.addActionListener(_ -> setBorderStyle(null));
         JMenuItem dashedItem = new JMenuItem("虚线");
-        dashedItem.addActionListener(e -> setBorderStyle(new float[]{9.0f, 3.0f}));
+        dashedItem.addActionListener(_ -> setBorderStyle(new float[]{9.0f, 3.0f}));
         JMenuItem dottedItem = new JMenuItem("点线");
-        dottedItem.addActionListener(e -> setBorderStyle(new float[]{1.0f, 2.0f}));
+        dottedItem.addActionListener(_ -> setBorderStyle(new float[]{1.0f, 2.0f}));
         borderStyleMenu.add(solidItem);
         borderStyleMenu.add(dashedItem);
         borderStyleMenu.add(dottedItem);
@@ -232,7 +232,7 @@ public class PresentationApp extends JFrame {
         JMenu viewMenu = new JMenu("视图(V)");
         viewMenu.setMnemonic(KeyEvent.VK_V);
         JMenuItem themeMenuItem = new JMenuItem("更改主题颜色...");
-        themeMenuItem.addActionListener(e -> {
+        themeMenuItem.addActionListener(_ -> {
             ThemeChooserDialog dialog = new ThemeChooserDialog(this);
             dialog.setVisible(true);
             if (dialog.isConfirmed()) {
@@ -243,11 +243,11 @@ public class PresentationApp extends JFrame {
 
         JMenu layoutMenu = new JMenu("应用页面布局");
         JMenuItem titleOnlyItem = new JMenuItem("仅标题");
-        titleOnlyItem.addActionListener(e -> applyLayout(PageLayout.TITLE_ONLY));
+        titleOnlyItem.addActionListener(_ -> applyLayout(PageLayout.TITLE_ONLY));
         JMenuItem titleContentItem = new JMenuItem("标题和内容");
-        titleContentItem.addActionListener(e -> applyLayout(PageLayout.TITLE_AND_CONTENT));
+        titleContentItem.addActionListener(_ -> applyLayout(PageLayout.TITLE_AND_CONTENT));
         JMenuItem twoColumnsItem = new JMenuItem("两栏");
-        twoColumnsItem.addActionListener(e -> applyLayout(PageLayout.TWO_COLUMNS));
+        twoColumnsItem.addActionListener(_ -> applyLayout(PageLayout.TWO_COLUMNS));
         layoutMenu.add(titleOnlyItem);
         layoutMenu.add(titleContentItem);
         layoutMenu.add(twoColumnsItem);
@@ -257,7 +257,7 @@ public class PresentationApp extends JFrame {
         slideshowMenu.setMnemonic(KeyEvent.VK_S);
         JMenuItem playFromStartMenuItem = new JMenuItem("从头开始");
         playFromStartMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0));
-        playFromStartMenuItem.addActionListener(e -> playSlideshow(0));
+        playFromStartMenuItem.addActionListener(_ -> playSlideshow(0));
         slideshowMenu.add(playFromStartMenuItem);
 
         JMenu transitionMenu = new JMenu("动画(A)");
@@ -265,11 +265,11 @@ public class PresentationApp extends JFrame {
         ButtonGroup transitionGroup = new ButtonGroup();
         // 这里可以加入无效果，修改SlideshowPlayer类和Transition枚举
         JRadioButtonMenuItem fadeItem = new JRadioButtonMenuItem("淡入淡出", true);
-        fadeItem.addActionListener(e -> selectedTransition = SlideshowPlayer.Transition.FADE);
+        fadeItem.addActionListener(_ -> selectedTransition = SlideshowPlayer.Transition.FADE);
         JRadioButtonMenuItem slideItem = new JRadioButtonMenuItem("滑动");
-        slideItem.addActionListener(e -> selectedTransition = SlideshowPlayer.Transition.SLIDE);
+        slideItem.addActionListener(_ -> selectedTransition = SlideshowPlayer.Transition.SLIDE);
         JRadioButtonMenuItem zoomItem = new JRadioButtonMenuItem("缩放");
-        zoomItem.addActionListener(e -> selectedTransition = SlideshowPlayer.Transition.ZOOM);
+        zoomItem.addActionListener(_ -> selectedTransition = SlideshowPlayer.Transition.ZOOM);
         transitionGroup.add(fadeItem);
         transitionGroup.add(slideItem);
         transitionGroup.add(zoomItem);
@@ -306,7 +306,7 @@ public class PresentationApp extends JFrame {
         JButton colorButton = new JButton("颜色");
         colorButton.setToolTipText("设置选中元素的颜色");
         colorButton.setFocusPainted(false);
-        colorButton.addActionListener(e -> {
+        colorButton.addActionListener(_ -> {
             SlideElement selected = editorPanel.getSelectedElement();
             if (selected == null) {
                 JOptionPane.showMessageDialog(this, "请先选择一个元素。");
@@ -351,7 +351,7 @@ public class PresentationApp extends JFrame {
         fontComboBox.setToolTipText("选择字体");
         fontComboBox.setMaximumSize(new Dimension(150, 30));
         fontComboBox.setFocusable(false);
-        fontComboBox.addActionListener(e -> {
+        fontComboBox.addActionListener(_ -> {
             String selectedFontName = (String) fontComboBox.getSelectedItem();
             if (selectedFontName != null) {
                 applyFontChange(selectedFontName, -1, -1);
@@ -366,7 +366,7 @@ public class PresentationApp extends JFrame {
         boldButton.setFont(new Font("Arial", Font.BOLD, 14));
         boldButton.setToolTipText("加粗");
         boldButton.setFocusPainted(false);
-        boldButton.addActionListener(e -> applyFontChange(null, Font.BOLD, -1));
+        boldButton.addActionListener(_ -> applyFontChange(null, Font.BOLD, -1));
         toolBar.add(boldButton);
 
         // 斜体按钮
@@ -374,7 +374,7 @@ public class PresentationApp extends JFrame {
         italicButton.setFont(new Font("Arial", Font.ITALIC, 14));
         italicButton.setToolTipText("斜体");
         italicButton.setFocusPainted(false);
-        italicButton.addActionListener(e -> applyFontChange(null, Font.ITALIC, -1));
+        italicButton.addActionListener(_ -> applyFontChange(null, Font.ITALIC, -1));
         toolBar.add(italicButton);
 
         add(toolBar, BorderLayout.NORTH);
@@ -417,14 +417,14 @@ public class PresentationApp extends JFrame {
         pageStatusLabel.setHorizontalAlignment(SwingConstants.CENTER);
         pageStatusLabel.setPreferredSize(new Dimension(100, 20));
 
-        prevPageButton.addActionListener(e -> {
+        prevPageButton.addActionListener(_ -> {
             if (slide.previousPage()) {
                 editorPanel.setSlidePage(slide.getCurrentPage());
                 updatePageStatus();
             }
         });
 
-        nextPageButton.addActionListener(e -> {
+        nextPageButton.addActionListener(_ -> {
             if (slide.nextPage()) {
                 editorPanel.setSlidePage(slide.getCurrentPage());
                 updatePageStatus();
@@ -603,7 +603,7 @@ class ThemeChooserDialog extends JDialog {
         backgroundPreview.setBackground(backgroundColor);
         backgroundPreview.setBorder(BorderFactory.createLineBorder(Color.BLACK));
 
-        primaryButton.addActionListener(e -> {
+        primaryButton.addActionListener(_ -> {
             Color chosen = JColorChooser.showDialog(this, "选择主色调", primaryColor);
             if (chosen != null) {
                 primaryColor = chosen;
@@ -611,7 +611,7 @@ class ThemeChooserDialog extends JDialog {
             }
         });
 
-        backgroundButton.addActionListener(e -> {
+        backgroundButton.addActionListener(_ -> {
             Color chosen = JColorChooser.showDialog(this, "选择背景色", backgroundColor);
             if (chosen != null) {
                 backgroundColor = chosen;
@@ -620,13 +620,13 @@ class ThemeChooserDialog extends JDialog {
         });
 
         JButton okButton = new JButton("确定");
-        okButton.addActionListener(e -> {
+        okButton.addActionListener(_ -> {
             confirmed = true;
             dispose();
         });
 
         JButton cancelButton = new JButton("取消");
-        cancelButton.addActionListener(e -> dispose());
+        cancelButton.addActionListener(_ -> dispose());
 
         panel.add(primaryButton);
         panel.add(primaryPreview);
