@@ -53,8 +53,6 @@ public class PresentationApp extends JFrame {
     private JLabel pageStatusLabel; // 页面状态标签
     private SlideshowPlayer.Transition selectedTransition = SlideshowPlayer.Transition.FADE;// 播放幻灯片时的过渡动画
     private JComboBox<String> fontComboBox; // 字体选择下拉框
-    private JButton boldButton; // 加粗按钮
-    private JButton italicButton; // 斜体按钮
 
     private JMenuBar menuBar;
     private JToolBar toolBar;
@@ -70,18 +68,21 @@ public class PresentationApp extends JFrame {
         return undoManager;
     }
 
+    //画界面
     public PresentationApp() {
         setTitle("PowerDot");
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE); // 关闭操作 EXIT_ON_CLOSE会直接关闭JVM,后续需要更改
         setSize(1200, 800);
-        setLocationRelativeTo(null);
+        setLocationRelativeTo(null); // 显示在屏幕中间
 
+        // 新建幻灯片
         slide = new Slide();
         slide.addPage(new SlidePage());
 
         createMenuBar();
         createToolBar();
 
+        // 初始化编辑面板
         editorPanel = new SlideEditorPanel(slide.getCurrentPage());
         editorPanel.setBackground(Color.WHITE);
         add(editorPanel, BorderLayout.CENTER);
@@ -91,15 +92,19 @@ public class PresentationApp extends JFrame {
         updatePageStatus();
     }
 
+    // 创建菜单栏
     private void createMenuBar() {
         menuBar = new JMenuBar();
 
         JMenu fileMenu = new JMenu("文件(F)");
-        fileMenu.setMnemonic(KeyEvent.VK_F);
+        fileMenu.setMnemonic(KeyEvent.VK_F);// 设置助记键
         JMenuItem newMenuItem = new JMenuItem("新建(N)");
         newMenuItem.setMnemonic(KeyEvent.VK_N);
-        newMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N, InputEvent.CTRL_DOWN_MASK));
-        newMenuItem.addActionListener(e -> {
+        newMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N, InputEvent.CTRL_DOWN_MASK));// 设置全局快捷键Ctrl+N
+        // lambda表达式简化代码
+        newMenuItem.addActionListener(e ->
+        {
+            // 新建幻灯片
             this.slide = new Slide();
             this.slide.addPage(new SlidePage());
             editorPanel.setSlidePage(this.slide.getCurrentPage());
@@ -258,6 +263,7 @@ public class PresentationApp extends JFrame {
         JMenu transitionMenu = new JMenu("动画(A)");
         transitionMenu.setMnemonic(KeyEvent.VK_A);
         ButtonGroup transitionGroup = new ButtonGroup();
+        // 这里可以加入无效果，修改SlideshowPlayer类和Transition枚举
         JRadioButtonMenuItem fadeItem = new JRadioButtonMenuItem("淡入淡出", true);
         fadeItem.addActionListener(e -> selectedTransition = SlideshowPlayer.Transition.FADE);
         JRadioButtonMenuItem slideItem = new JRadioButtonMenuItem("滑动");
@@ -281,10 +287,10 @@ public class PresentationApp extends JFrame {
         setJMenuBar(menuBar);
     }
 
+    // 设置边框样式
     private void setBorderStyle(float[] dashArray) {
         SlideElement selected = editorPanel.getSelectedElement();
-        if (selected instanceof ShapeElement) {
-            ShapeElement shape = (ShapeElement) selected;
+        if (selected instanceof ShapeElement shape) {
             float[] oldDashArray = shape.getBorderStyle();
             Command cmd = new ChangeElementPropertyCommand(() -> shape.setBorderStyle(dashArray), () -> shape.setBorderStyle(oldDashArray));
             undoManager.executeCommand(cmd);
@@ -294,6 +300,7 @@ public class PresentationApp extends JFrame {
         }
     }
 
+    // 创建工具栏
     private void createToolBar() {
         toolBar = new JToolBar();
         JButton colorButton = new JButton("颜色");
@@ -308,29 +315,31 @@ public class PresentationApp extends JFrame {
             Color newColor = JColorChooser.showDialog(this, "选择颜色", Color.BLACK);
             if (newColor == null) { return; }
 
-            if (selected instanceof TextElement) {
-                TextElement textElem = (TextElement) selected;
-                Color oldColor = textElem.getColor();
-                Command cmd = new ChangeElementPropertyCommand(() -> textElem.setColor(newColor), () -> textElem.setColor(oldColor));
-                undoManager.executeCommand(cmd);
-            } else if (selected instanceof LineElement) {
-                LineElement lineElem = (LineElement) selected;
-                Color oldColor = lineElem.getColor();
-                Command cmd = new ChangeElementPropertyCommand(() -> lineElem.setColor(newColor), () -> lineElem.setColor(oldColor));
-                undoManager.executeCommand(cmd);
-            } else if (selected instanceof ShapeElement) {
-                ShapeElement shape = (ShapeElement) selected;
-                Object[] options = {"边框", "填充"};
-                int choice = JOptionPane.showOptionDialog(this, "修改哪个部分的颜色？", "选择颜色类型", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
-                if (choice == 0) {
-                    Color oldColor = shape.getBorderColor();
-                    Command cmd = new ChangeElementPropertyCommand(() -> shape.setBorderColor(newColor), () -> shape.setBorderColor(oldColor));
-                    undoManager.executeCommand(cmd);
-                } else {
-                    Color oldColor = shape.getFillColor();
-                    Command cmd = new ChangeElementPropertyCommand(() -> shape.setFillColor(newColor), () -> shape.setFillColor(oldColor));
+            switch (selected) {
+                case TextElement textElem -> {
+                    Color oldColor = textElem.getColor();
+                    Command cmd = new ChangeElementPropertyCommand(() -> textElem.setColor(newColor), () -> textElem.setColor(oldColor));
                     undoManager.executeCommand(cmd);
                 }
+                case LineElement lineElem -> {
+                    Color oldColor = lineElem.getColor();
+                    Command cmd = new ChangeElementPropertyCommand(() -> lineElem.setColor(newColor), () -> lineElem.setColor(oldColor));
+                    undoManager.executeCommand(cmd);
+                }
+                case ShapeElement shape -> {
+                    Object[] options = {"边框", "填充"};
+                    int choice = JOptionPane.showOptionDialog(this, "修改哪个部分的颜色？", "选择颜色类型", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+                    if (choice == 0) {
+                        Color oldColor = shape.getBorderColor();
+                        Command cmd = new ChangeElementPropertyCommand(() -> shape.setBorderColor(newColor), () -> shape.setBorderColor(oldColor));
+                        undoManager.executeCommand(cmd);
+                    } else {
+                        Color oldColor = shape.getFillColor();
+                        Command cmd = new ChangeElementPropertyCommand(() -> shape.setFillColor(newColor), () -> shape.setFillColor(oldColor));
+                        undoManager.executeCommand(cmd);
+                    }
+                }
+                default -> {}
             }
             editorPanel.repaint();
         });
@@ -352,14 +361,16 @@ public class PresentationApp extends JFrame {
         toolBar.add(fontComboBox);
         toolBar.addSeparator();
 
-        boldButton = new JButton("B");
+        // 加粗按钮
+        JButton boldButton = new JButton("B");
         boldButton.setFont(new Font("Arial", Font.BOLD, 14));
         boldButton.setToolTipText("加粗");
         boldButton.setFocusPainted(false);
         boldButton.addActionListener(e -> applyFontChange(null, Font.BOLD, -1));
         toolBar.add(boldButton);
 
-        italicButton = new JButton("I");
+        // 斜体按钮
+        JButton italicButton = new JButton("I");
         italicButton.setFont(new Font("Arial", Font.ITALIC, 14));
         italicButton.setToolTipText("斜体");
         italicButton.setFocusPainted(false);
@@ -371,8 +382,7 @@ public class PresentationApp extends JFrame {
 
     private void applyFontChange(String newName, int styleToToggle, int newSize) {
         SlideElement selected = editorPanel.getSelectedElement();
-        if (selected instanceof TextElement) {
-            TextElement textElem = (TextElement) selected;
+        if (selected instanceof TextElement textElem) {
             Font oldFont = textElem.getFont();
 
             String fontName = (newName != null) ? newName : oldFont.getName();

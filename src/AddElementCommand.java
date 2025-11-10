@@ -1,3 +1,4 @@
+// 添加元素命令执行与撤销
 public class AddElementCommand implements Command {
     private final SlidePage page;
     private final SlideElement element;

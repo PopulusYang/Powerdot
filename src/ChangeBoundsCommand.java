@@ -1,3 +1,4 @@
+// 修改幻灯片元素的边界的命令实现
 import java.awt.Rectangle;
 
 public class ChangeBoundsCommand implements Command {

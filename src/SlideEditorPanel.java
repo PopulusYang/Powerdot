@@ -14,15 +14,6 @@ public class SlideEditorPanel extends JPanel {
     private Point lastMousePoint;// 上一次鼠标位置
     private enum State { IDLE, MOVING, RESIZING } // 三种编辑状态
     private State currentState = State.IDLE; // 状态标志位
-    /*
-    * @***********@***********@
-    * *                       *
-    * *                       *
-    * @         八个点         @
-    * *                       *
-    * *                       *
-    * @***********@***********@
-    */
     // 此处handle应该是指调整大小的控制点
     private static final int HANDLE_SIZE = 8;//控制点位边长为4的正方形
 
@@ -117,6 +108,8 @@ public class SlideEditorPanel extends JPanel {
         if (selectedElement == null) return;
         Rectangle bounds = selectedElement.getBounds();// 获取元素边界
         int halfHandle = HANDLE_SIZE / 2;
+
+        // 设置八个控制点的位置
         resizeHandles[0].setBounds(bounds.x - halfHandle, bounds.y - halfHandle, HANDLE_SIZE, HANDLE_SIZE);
         resizeHandles[1].setBounds(bounds.x + bounds.width / 2 - halfHandle, bounds.y - halfHandle, HANDLE_SIZE, HANDLE_SIZE);
         resizeHandles[2].setBounds(bounds.x + bounds.width - halfHandle, bounds.y - halfHandle, HANDLE_SIZE, HANDLE_SIZE);
@@ -187,10 +180,12 @@ public class SlideEditorPanel extends JPanel {
             }
             /*缩放*/
             if (panel.selectedElement != null) {
-                if (panel.selectedElement instanceof LineElement) {
-                    LineElement line = (LineElement) panel.selectedElement;
-                    if (line.getStartHandle().contains(panel.lastMousePoint)) {
-                        panel.currentState = State.RESIZING;
+                // 直线
+                if (panel.selectedElement instanceof LineElement line) {
+                    // 判断鼠标是否在两个控制点上
+                    if (line.getStartHandle().contains(panel.lastMousePoint))
+                    {
+                        panel.currentState = State.RESIZING;// 切换状态为resizing
                         panel.activeHandle = 0;
                         return;
                     }
@@ -199,30 +194,43 @@ public class SlideEditorPanel extends JPanel {
                         panel.activeHandle = 1;
                         return;
                     }
-                } else {
-                    panel.updateResizeHandlesForRect();
+                }
+                // 其他元素
+                else {
+                    panel.updateResizeHandlesForRect(); // 更新控制点位置
+                    // 逐个扫描
                     for (int i = 0; i < 8; i++) {
                         if (panel.resizeHandles[i].contains(panel.lastMousePoint)) {
                             panel.currentState = State.RESIZING;
-                            panel.activeHandle = i;
-                            return;
+                            panel.activeHandle = i; // 调整活动控制点索引
+                            return;// 检测到直接返回，结束循环
                         }
                     }
                 }
             }
             /*移动或编辑文本*/
             if (elementUnderMouse != null) {
-                if (e.getClickCount() == 2 && elementUnderMouse instanceof TextElement) {
-                    TextElement textElement = (TextElement) elementUnderMouse;
+                // 双击文本元素
+                if (e.getClickCount() == 2 && elementUnderMouse instanceof TextElement textElement) {
+                    // 记录原始文本
                     originalText = textElement.getText();
+                    //通过新的Dialog窗口编辑文本
                     String newText = JOptionPane.showInputDialog(panel, "编辑文本:", originalText);
                     if (newText != null && !newText.equals(originalText)) {
-                        Command cmd = new ChangeElementPropertyCommand(() -> textElement.setText(newText), () -> textElement.setText(originalText));
-                        getUndoManager().executeCommand(cmd);
+                        // 替换新文本
+                        Command cmd = new ChangeElementPropertyCommand(
+                                () -> textElement.setText(newText),
+                                () -> textElement.setText(originalText)
+                        );
+                        getUndoManager().executeCommand(cmd);// 处理撤销/重做逻辑
                     }
-                } else {
+                }
+                //ClickCount != 2 || 非文本元素，移动处理
+                else {
+                    // 再次点击的元素需与当前选中元素相同
                     if (panel.selectedElement != elementUnderMouse) {
                         panel.selectedElement = elementUnderMouse;
+                        // 存储原始状态
                         if (selectedElement instanceof LineElement) {
                             originalLineStart = ((LineElement) selectedElement).getStartPoint();
                             originalLineEnd = ((LineElement) selectedElement).getEndPoint();
@@ -230,9 +238,12 @@ public class SlideEditorPanel extends JPanel {
                             originalRectBounds = new Rectangle(selectedElement.getBounds());
                         }
                     }
+                    // 切换状态为移动
                     panel.currentState = State.MOVING;
                 }
-            } else {
+            }
+            // 瞎jb点，取消选中
+            else {
                 panel.selectedElement = null;
                 panel.currentState = State.IDLE;
             }
@@ -240,7 +251,9 @@ public class SlideEditorPanel extends JPanel {
         }
         // 鼠标释放事件处理
         @Override
-        public void mouseReleased(MouseEvent e) {
+        public void mouseReleased(MouseEvent e)
+        {
+            // 完成移动或调整大小后，记录命令以支持撤销/重做
             if ((currentState == State.MOVING || currentState == State.RESIZING) && selectedElement != null) {
                 if (selectedElement instanceof LineElement) {
                     LineElement line = (LineElement) selectedElement;
@@ -350,7 +363,7 @@ public class SlideEditorPanel extends JPanel {
                 default -> Cursor.getDefaultCursor();
             };
         }
-
+        // 调整矩形元素大小
         private void resizeRectElement(int dx, int dy) {
             Rectangle bounds = panel.selectedElement.getBounds();
             int minSize = 20;

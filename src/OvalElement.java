@@ -1,3 +1,4 @@
+// 椭圆
 import java.awt.*;
 
 public class OvalElement extends ShapeElement {

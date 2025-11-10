@@ -1,3 +1,4 @@
+// 圆，纯凑数用的
 import java.awt.Color;
 
 public class CircleElement extends OvalElement {
