@@ -8,7 +8,7 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
-import java.util.List;
+
 
 // 该播放器以JDialog为基础，实现全屏幻灯片放映功能
 public class SlideshowPlayer extends JDialog {
