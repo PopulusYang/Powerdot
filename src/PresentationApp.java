@@ -46,6 +46,7 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 public class PresentationApp extends JFrame {
     private Slide slide;// 当前幻灯片
     private final SlideEditorPanel editorPanel; // 编辑幻灯片面板对象
+    private final SlidePreviewPanel previewPanel; // 幻灯片预览面板
     private final UndoManager undoManager = new UndoManager(); // 撤销管理器
 
     private JButton prevPageButton; // 上一页
@@ -68,7 +69,7 @@ public class PresentationApp extends JFrame {
         return undoManager;
     }
 
-    //画界面
+    // 画界面
     public PresentationApp() {
         setTitle("PowerDot");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE); // 关闭操作 EXIT_ON_CLOSE会直接关闭JVM,后续需要更改
@@ -87,9 +88,37 @@ public class PresentationApp extends JFrame {
         editorPanel.setBackground(Color.WHITE);
         add(editorPanel, BorderLayout.CENTER);
 
+        // 初始化预览面板
+        previewPanel = new SlidePreviewPanel(this);
+        previewPanel.updateSlideList(slide.getAllPages());
+        previewPanel.setSelectedPage(0);
+        add(previewPanel, BorderLayout.WEST);
+
+        // 注册撤销管理器监听器，当内容发生变化时刷新预览
+        undoManager.addListener(() -> {
+            previewPanel.refreshPreviews();
+            editorPanel.repaint(); // 确保编辑区也重绘
+        });
+
         createStatusBar();
         setVisible(true);
         updatePageStatus();
+
+        // 启动时自动适配屏幕
+        SwingUtilities.invokeLater(() -> {
+            editorPanel.zoomToFit();
+            // 更新工具栏缩放比例显示（如果有的话，这里暂时没有直接访问到那个ComboBox，可以后续优化）
+        });
+    }
+
+    public void jumpToPage(int index) {
+        if (index == slide.getCurrentPageIndex())
+            return;
+        if (index >= 0 && index < slide.getTotalPages()) {
+            slide.setCurrentPageIndex(index);
+            editorPanel.setSlidePage(slide.getCurrentPage());
+            updatePageStatus();
+        }
     }
 
     // 创建菜单栏
@@ -102,13 +131,17 @@ public class PresentationApp extends JFrame {
         newMenuItem.setMnemonic(KeyEvent.VK_N);
         newMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N, InputEvent.CTRL_DOWN_MASK));// 设置全局快捷键Ctrl+N
         // lambda表达式简化代码
-        newMenuItem.addActionListener(_ ->
-        {
+        newMenuItem.addActionListener(_ -> {
             // 新建幻灯片
             this.slide = new Slide();
             this.slide.addPage(new SlidePage());
             editorPanel.setSlidePage(this.slide.getCurrentPage());
             undoManager.clear();
+
+            // 更新预览列表
+            previewPanel.updateSlideList(slide.getAllPages());
+            previewPanel.setSelectedPage(0);
+
             updatePageStatus();
         });
         JMenuItem openMenuItem = new JMenuItem("打开(O)...");
@@ -152,6 +185,13 @@ public class PresentationApp extends JFrame {
         });
         editMenu.add(undoMenuItem);
         editMenu.add(redoMenuItem);
+
+        JMenuItem deleteMenuItem = new JMenuItem("删除(D)");
+        deleteMenuItem.setMnemonic(KeyEvent.VK_D);
+        deleteMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, 0));
+        deleteMenuItem.addActionListener(_ -> editorPanel.deleteSelectedElement());
+        editMenu.add(deleteMenuItem);
+
         editMenu.addSeparator();
         JMenuItem newPageMenuItem = new JMenuItem("新建空白页面(P)");
         newPageMenuItem.setMnemonic(KeyEvent.VK_P);
@@ -160,6 +200,11 @@ public class PresentationApp extends JFrame {
             this.slide.addPage(newPage);
             this.slide.setCurrentPageIndex(this.slide.getTotalPages() - 1);
             editorPanel.setSlidePage(newPage);
+
+            // 更新预览列表
+            previewPanel.updateSlideList(slide.getAllPages());
+            previewPanel.setSelectedPage(slide.getCurrentPageIndex());
+
             updatePageStatus();
         });
         editMenu.add(newPageMenuItem);
@@ -218,12 +263,15 @@ public class PresentationApp extends JFrame {
         JMenu formatMenu = new JMenu("格式(O)");
         formatMenu.setMnemonic(KeyEvent.VK_O);
         JMenu borderStyleMenu = new JMenu("边框样式");
+        JMenuItem noBorderItem = new JMenuItem("无边框");
+        noBorderItem.addActionListener(_ -> setNoBorder());
         JMenuItem solidItem = new JMenuItem("实线");
         solidItem.addActionListener(_ -> setBorderStyle(null));
         JMenuItem dashedItem = new JMenuItem("虚线");
-        dashedItem.addActionListener(_ -> setBorderStyle(new float[]{9.0f, 3.0f}));
+        dashedItem.addActionListener(_ -> setBorderStyle(new float[] { 9.0f, 3.0f }));
         JMenuItem dottedItem = new JMenuItem("点线");
-        dottedItem.addActionListener(_ -> setBorderStyle(new float[]{1.0f, 2.0f}));
+        dottedItem.addActionListener(_ -> setBorderStyle(new float[] { 1.0f, 2.0f }));
+        borderStyleMenu.add(noBorderItem);
         borderStyleMenu.add(solidItem);
         borderStyleMenu.add(dashedItem);
         borderStyleMenu.add(dottedItem);
@@ -263,16 +311,23 @@ public class PresentationApp extends JFrame {
         JMenu transitionMenu = new JMenu("动画(A)");
         transitionMenu.setMnemonic(KeyEvent.VK_A);
         ButtonGroup transitionGroup = new ButtonGroup();
-        // 这里可以加入无效果，修改SlideshowPlayer类和Transition枚举
+
+        JRadioButtonMenuItem noneItem = new JRadioButtonMenuItem("无动画");
+        noneItem.addActionListener(_ -> selectedTransition = SlideshowPlayer.Transition.NONE);
+
         JRadioButtonMenuItem fadeItem = new JRadioButtonMenuItem("淡入淡出", true);
         fadeItem.addActionListener(_ -> selectedTransition = SlideshowPlayer.Transition.FADE);
         JRadioButtonMenuItem slideItem = new JRadioButtonMenuItem("滑动");
         slideItem.addActionListener(_ -> selectedTransition = SlideshowPlayer.Transition.SLIDE);
         JRadioButtonMenuItem zoomItem = new JRadioButtonMenuItem("缩放");
         zoomItem.addActionListener(_ -> selectedTransition = SlideshowPlayer.Transition.ZOOM);
+
+        transitionGroup.add(noneItem);
         transitionGroup.add(fadeItem);
         transitionGroup.add(slideItem);
         transitionGroup.add(zoomItem);
+
+        transitionMenu.add(noneItem);
         transitionMenu.add(fadeItem);
         transitionMenu.add(slideItem);
         transitionMenu.add(zoomItem);
@@ -287,12 +342,36 @@ public class PresentationApp extends JFrame {
         setJMenuBar(menuBar);
     }
 
+    // 设置无边框
+    private void setNoBorder() {
+        SlideElement selected = editorPanel.getSelectedElement();
+        if (selected instanceof ShapeElement shape) {
+            int oldThickness = shape.getBorderThickness();
+            Command cmd = new ChangeElementPropertyCommand(() -> shape.setBorderThickness(0),
+                    () -> shape.setBorderThickness(oldThickness));
+            undoManager.executeCommand(cmd);
+            editorPanel.repaint();
+        } else {
+            JOptionPane.showMessageDialog(this, "请先选择一个基本图形（矩形、圆、椭圆）。");
+        }
+    }
+
     // 设置边框样式
     private void setBorderStyle(float[] dashArray) {
         SlideElement selected = editorPanel.getSelectedElement();
         if (selected instanceof ShapeElement shape) {
             float[] oldDashArray = shape.getBorderStyle();
-            Command cmd = new ChangeElementPropertyCommand(() -> shape.setBorderStyle(dashArray), () -> shape.setBorderStyle(oldDashArray));
+            int oldThickness = shape.getBorderThickness();
+
+            Command cmd = new ChangeElementPropertyCommand(() -> {
+                shape.setBorderStyle(dashArray);
+                if (shape.getBorderThickness() == 0) {
+                    shape.setBorderThickness(1);
+                }
+            }, () -> {
+                shape.setBorderStyle(oldDashArray);
+                shape.setBorderThickness(oldThickness);
+            });
             undoManager.executeCommand(cmd);
             editorPanel.repaint();
         } else {
@@ -313,33 +392,41 @@ public class PresentationApp extends JFrame {
                 return;
             }
             Color newColor = JColorChooser.showDialog(this, "选择颜色", Color.BLACK);
-            if (newColor == null) { return; }
+            if (newColor == null) {
+                return;
+            }
 
             switch (selected) {
                 case TextElement textElem -> {
                     Color oldColor = textElem.getColor();
-                    Command cmd = new ChangeElementPropertyCommand(() -> textElem.setColor(newColor), () -> textElem.setColor(oldColor));
+                    Command cmd = new ChangeElementPropertyCommand(() -> textElem.setColor(newColor),
+                            () -> textElem.setColor(oldColor));
                     undoManager.executeCommand(cmd);
                 }
                 case LineElement lineElem -> {
                     Color oldColor = lineElem.getColor();
-                    Command cmd = new ChangeElementPropertyCommand(() -> lineElem.setColor(newColor), () -> lineElem.setColor(oldColor));
+                    Command cmd = new ChangeElementPropertyCommand(() -> lineElem.setColor(newColor),
+                            () -> lineElem.setColor(oldColor));
                     undoManager.executeCommand(cmd);
                 }
                 case ShapeElement shape -> {
-                    Object[] options = {"边框", "填充"};
-                    int choice = JOptionPane.showOptionDialog(this, "修改哪个部分的颜色？", "选择颜色类型", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+                    Object[] options = { "边框", "填充" };
+                    int choice = JOptionPane.showOptionDialog(this, "修改哪个部分的颜色？", "选择颜色类型", JOptionPane.YES_NO_OPTION,
+                            JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
                     if (choice == 0) {
                         Color oldColor = shape.getBorderColor();
-                        Command cmd = new ChangeElementPropertyCommand(() -> shape.setBorderColor(newColor), () -> shape.setBorderColor(oldColor));
+                        Command cmd = new ChangeElementPropertyCommand(() -> shape.setBorderColor(newColor),
+                                () -> shape.setBorderColor(oldColor));
                         undoManager.executeCommand(cmd);
                     } else {
                         Color oldColor = shape.getFillColor();
-                        Command cmd = new ChangeElementPropertyCommand(() -> shape.setFillColor(newColor), () -> shape.setFillColor(oldColor));
+                        Command cmd = new ChangeElementPropertyCommand(() -> shape.setFillColor(newColor),
+                                () -> shape.setFillColor(oldColor));
                         undoManager.executeCommand(cmd);
                     }
                 }
-                default -> {}
+                default -> {
+                }
             }
             editorPanel.repaint();
         });
@@ -377,6 +464,57 @@ public class PresentationApp extends JFrame {
         italicButton.addActionListener(_ -> applyFontChange(null, Font.ITALIC, -1));
         toolBar.add(italicButton);
 
+        // 字号按钮
+        JButton fontSizeButton = new JButton("字号");
+        fontSizeButton.setToolTipText("设置字号");
+        fontSizeButton.setFocusPainted(false);
+        fontSizeButton.addActionListener(_ -> {
+            SlideElement selected = editorPanel.getSelectedElement();
+            if (selected instanceof TextElement textElem) {
+                String input = JOptionPane.showInputDialog(this, "请输入字号:", textElem.getFont().getSize());
+                if (input != null) {
+                    try {
+                        int newSize = Integer.parseInt(input);
+                        if (newSize > 0) {
+                            int oldSize = textElem.getFont().getSize();
+                            Command cmd = new ChangeElementPropertyCommand(() -> textElem.setFontSize(newSize),
+                                    () -> textElem.setFontSize(oldSize));
+                            undoManager.executeCommand(cmd);
+                            editorPanel.repaint();
+                        } else {
+                            JOptionPane.showMessageDialog(this, "字号必须大于0。");
+                        }
+                    } catch (NumberFormatException ex) {
+                        JOptionPane.showMessageDialog(this, "请输入有效的整数。");
+                    }
+                }
+            } else {
+                JOptionPane.showMessageDialog(this, "请先选择一个文本框。");
+            }
+        });
+        toolBar.add(fontSizeButton);
+
+        toolBar.addSeparator();
+        toolBar.add(new JLabel(" 缩放: "));
+        String[] zoomLevels = { "50%", "75%", "100%", "125%", "150%", "200%" };
+        JComboBox<String> zoomComboBox = new JComboBox<>(zoomLevels);
+        zoomComboBox.setSelectedItem("100%");
+        zoomComboBox.setMaximumSize(new Dimension(80, 30));
+        zoomComboBox.setFocusable(false);
+        zoomComboBox.addActionListener(_ -> {
+            String selected = (String) zoomComboBox.getSelectedItem();
+            if (selected != null) {
+                String value = selected.replace("%", "");
+                try {
+                    double scale = Double.parseDouble(value) / 100.0;
+                    editorPanel.setScaleFactor(scale);
+                } catch (NumberFormatException ex) {
+                    ex.printStackTrace();
+                }
+            }
+        });
+        toolBar.add(zoomComboBox);
+
         add(toolBar, BorderLayout.NORTH);
     }
 
@@ -396,8 +534,7 @@ public class PresentationApp extends JFrame {
 
             Command cmd = new ChangeElementPropertyCommand(
                     () -> textElem.setFont(newFont),
-                    () -> textElem.setFont(oldFont)
-            );
+                    () -> textElem.setFont(oldFont));
             undoManager.executeCommand(cmd);
             editorPanel.repaint();
         } else {
@@ -449,6 +586,9 @@ public class PresentationApp extends JFrame {
             pageStatusLabel.setText("第 " + currentPage + " / " + totalPages + " 页");
             prevPageButton.setEnabled(currentPage > 1);
             nextPageButton.setEnabled(currentPage < totalPages);
+
+            // 同步预览列表选中状态
+            previewPanel.setSelectedPage(slide.getCurrentPageIndex());
         }
     }
 
@@ -497,6 +637,11 @@ public class PresentationApp extends JFrame {
                 slide = (Slide) ois.readObject();
                 editorPanel.setSlidePage(slide.getCurrentPage());
                 undoManager.clear();
+
+                // 更新预览列表
+                previewPanel.updateSlideList(slide.getAllPages());
+                previewPanel.setSelectedPage(slide.getCurrentPageIndex());
+
                 JOptionPane.showMessageDialog(this, "打开成功！");
             } catch (IOException | ClassNotFoundException ex) {
                 ex.printStackTrace();
@@ -515,7 +660,8 @@ public class PresentationApp extends JFrame {
                 fileToSave = new File(fileToSave.getParentFile(), fileToSave.getName() + ".png");
             }
             try {
-                BufferedImage image = new BufferedImage(editorPanel.getWidth(), editorPanel.getHeight(), BufferedImage.TYPE_INT_ARGB);
+                BufferedImage image = new BufferedImage(editorPanel.getWidth(), editorPanel.getHeight(),
+                        BufferedImage.TYPE_INT_ARGB);
                 Graphics2D g2d = image.createGraphics();
                 editorPanel.paint(g2d);
                 g2d.dispose();
@@ -549,7 +695,8 @@ public class PresentationApp extends JFrame {
 
     private void applyLayout(PageLayout layout) {
         SlidePage currentPage = editorPanel.getCurrentPage();
-        if (currentPage == null) return;
+        if (currentPage == null)
+            return;
 
         List<SlideElement> newElements = new ArrayList<>();
         switch (layout) {

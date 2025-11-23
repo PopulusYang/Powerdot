@@ -1,3 +1,6 @@
+
+// 文件名: SlideshowPlayer.java
+// 功能: 实现幻灯片放映功能，包括页面切换和动画效果
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
@@ -7,23 +10,32 @@ import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.util.List;
 
+// 该播放器以JDialog为基础，实现全屏幻灯片放映功能
 public class SlideshowPlayer extends JDialog {
+    // 底层幻灯片数据
     private final Slide slide;
     private int currentIndex;
     private final PlayerPanel playerPanel;
 
-    private Timer animationTimer;
-    public enum Transition { FADE, SLIDE, ZOOM }
-    private final Transition transitionEffect;
-    private boolean isAnimating = false;
+    private Timer animationTimer;// 动画计时器
 
-    private BufferedImage previousPageImage;
-    private BufferedImage currentPageImage;
-    private long animationStartTime;
-    private final int ANIMATION_DURATION = 500;
+    public enum Transition {
+        FADE, SLIDE, ZOOM, NONE
+    } // 动画枚举
 
-    private enum Direction { FORWARD, BACKWARD }
-    private Direction animationDirection;
+    private final Transition transitionEffect;// 当前动画效果
+    private boolean isAnimating = false; // 是否正在动画中
+
+    private BufferedImage previousPageImage; // 上一页图像
+    private BufferedImage currentPageImage;// 当前页图像
+    private long animationStartTime; // 动画开始时间
+    private final int ANIMATION_DURATION = 500; // 动画持续时间（毫秒）
+
+    private enum Direction {
+        FORWARD, BACKWARD
+    } // 动画方向枚举
+
+    private Direction animationDirection;// 当前动画方向
 
     public SlideshowPlayer(JFrame owner, Slide slide, int startIndex, Transition transition) {
         super(owner, "幻灯片放映", true);
@@ -39,31 +51,43 @@ public class SlideshowPlayer extends JDialog {
 
         setupInputHandling();
 
-        GraphicsDevice gd = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
-        if (gd.isFullScreenSupported()) {
-            gd.setFullScreenWindow(this);
-        } else {
-            setSize(owner.getToolkit().getScreenSize());
-            setLocation(0, 0);
-        }
+        // 改为手动全屏，避免 GraphicsDevice.setFullScreenWindow 可能导致的 NPE
+        setSize(Toolkit.getDefaultToolkit().getScreenSize());
+        setLocation(0, 0);
     }
 
+    // 设置输入处理，包括鼠标点击和键盘按键
     private void setupInputHandling() {
+        // 匿名派生类处理鼠标点击事件
         playerPanel.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
                 if (SwingUtilities.isLeftMouseButton(e)) {
-                    nextPage();
+                    nextPage();// 点击鼠标左键切换到下一页
                 }
             }
         });
 
-        int mapCondition = JComponent.WHEN_IN_FOCUSED_WINDOW;
+        int mapCondition = JComponent.WHEN_IN_FOCUSED_WINDOW;// 输入映射条件，全局映射
         var inputMap = playerPanel.getInputMap(mapCondition);
         var actionMap = playerPanel.getActionMap();
 
-        KeyStroke[] nextKeys = { KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, 0), KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, 0), KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0), KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_DOWN, 0) };
-        KeyStroke[] prevKeys = { KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, 0), KeyStroke.getKeyStroke(KeyEvent.VK_UP, 0), KeyStroke.getKeyStroke(KeyEvent.VK_BACK_SPACE, 0), KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_UP, 0) };
+        // 定义键盘快捷键
+        // 下一页
+        KeyStroke[] nextKeys = {
+                KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, 0),
+                KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, 0),
+                KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0),
+                KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_DOWN, 0)
+        };
+        // 上一页
+        KeyStroke[] prevKeys = {
+                KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, 0),
+                KeyStroke.getKeyStroke(KeyEvent.VK_UP, 0),
+                KeyStroke.getKeyStroke(KeyEvent.VK_BACK_SPACE, 0),
+                KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_UP, 0)
+        };
+        // 退出放映
         KeyStroke exitKey = KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0);
 
         actionMap.put("nextPage", new AbstractAction() {
@@ -96,7 +120,8 @@ public class SlideshowPlayer extends JDialog {
 
     private void nextPage() {
         if (isAnimating || currentIndex >= slide.getAllPages().size() - 1) {
-            if (!isAnimating) exitSlideshow();
+            if (!isAnimating)
+                exitSlideshow();
             return;
         }
         startAnimation(currentIndex + 1, Direction.FORWARD);
@@ -110,7 +135,14 @@ public class SlideshowPlayer extends JDialog {
     }
 
     private void startAnimation(int nextIndex, Direction direction) {
-        if (isAnimating) return;
+        if (isAnimating)
+            return;
+
+        if (transitionEffect == Transition.NONE) {
+            currentIndex = nextIndex;
+            repaint();
+            return;
+        }
 
         isAnimating = true;
         this.animationDirection = direction;
@@ -158,16 +190,7 @@ public class SlideshowPlayer extends JDialog {
 
     private void exitSlideshow() {
         stopAnimation();
-        GraphicsDevice gd = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
-        try {
-            if (gd.getFullScreenWindow() == this) {
-                gd.setFullScreenWindow(null);
-            }
-        } catch (Exception e) {
-            System.err.println("Error while exiting fullscreen mode: " + e.getMessage());
-        } finally {
-            dispose();
-        }
+        dispose();
     }
 
     private class PlayerPanel extends JPanel {
@@ -197,6 +220,8 @@ public class SlideshowPlayer extends JDialog {
                         break;
                     case ZOOM:
                         drawZoom(g2d, progress);
+                        break;
+                    case NONE:
                         break;
                 }
             } else {

@@ -1,3 +1,4 @@
+
 //文件名： SlidePage.java
 //功能： 表示幻灯片中的单个页面，包含多个幻灯片元素
 import java.io.Serializable;
@@ -13,6 +14,14 @@ public class SlidePage implements Serializable {
 
     public void addElement(SlideElement element) {
         elements.add(element);
+    }
+
+    public void addElement(int index, SlideElement element) {
+        if (index >= 0 && index <= elements.size()) {
+            elements.add(index, element);
+        } else {
+            elements.add(element);
+        }
     }
 
     public void removeElement(SlideElement element) {

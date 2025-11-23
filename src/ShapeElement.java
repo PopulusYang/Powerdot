@@ -61,4 +61,12 @@ public abstract class ShapeElement extends SlideElement {
         this.width = bounds.width;
         this.height = bounds.height;
     }
+
+    public void setBorderThickness(int thickness) {
+        this.borderThickness = thickness;
+    }
+
+    public int getBorderThickness() {
+        return borderThickness;
+    }
 }
