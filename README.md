@@ -41,9 +41,7 @@ java -cp src PresentationApp
 
 ## 作者
 
-* 赵梓恒
-* 叶俊翔
-* 杨武显
+* 东北大学三名本科生
 
 ## 开发时间
 
