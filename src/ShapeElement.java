@@ -21,7 +21,12 @@ public abstract class ShapeElement extends SlideElement {
 
     @Override
     public boolean contains(Point p) {
-        return getBounds().contains(p);
+        if (rotation == 0) {
+            return getBounds().contains(p);
+        }
+        Point center = new Point(x + width / 2, y + height / 2);
+        Point rotatedP = rotatePoint(p, center, -rotation);
+        return getBounds().contains(rotatedP);
     }
 
     @Override

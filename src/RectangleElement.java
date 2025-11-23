@@ -11,6 +11,10 @@ public class RectangleElement extends ShapeElement {
     public void draw(Graphics g) {
         Graphics2D g2d = (Graphics2D) g.create();
 
+        if (rotation != 0) {
+            g2d.rotate(Math.toRadians(rotation), x + width / 2.0, y + height / 2.0);
+        }
+
         if (fillColor != null) {
             g2d.setColor(fillColor);
             g2d.fillRect(x, y, width, height);

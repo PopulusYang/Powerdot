@@ -41,6 +41,7 @@ import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.GraphicsEnvironment;
 import java.awt.GridLayout;
+import java.awt.RenderingHints;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
 public class PresentationApp extends JFrame {
@@ -58,6 +59,9 @@ public class PresentationApp extends JFrame {
     private JMenuBar menuBar;
     private JToolBar toolBar;
 
+    private File currentFile = null; // 当前打开的文件
+    private boolean isModified = false; // 是否有未保存的修改
+
     public enum PageLayout // 页面布局枚举
     {
         TITLE_ONLY, // 仅标题
@@ -69,11 +73,21 @@ public class PresentationApp extends JFrame {
         return undoManager;
     }
 
+    public Slide getSlide() {
+        return slide;
+    }
+
     // 画界面
     public PresentationApp() {
         setTitle("PowerDot");
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE); // 关闭操作 EXIT_ON_CLOSE会直接关闭JVM,后续需要更改
-        setSize(1200, 800);
+        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE); // 改为手动处理关闭
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent e) {
+                exitApp();
+            }
+        });
+        setSize(1280, 720);
         setLocationRelativeTo(null); // 显示在屏幕中间
 
         // 新建幻灯片
@@ -84,7 +98,7 @@ public class PresentationApp extends JFrame {
         createToolBar();
 
         // 初始化编辑面板
-        editorPanel = new SlideEditorPanel(slide.getCurrentPage());
+        editorPanel = new SlideEditorPanel(slide);
         editorPanel.setBackground(Color.WHITE);
         add(editorPanel, BorderLayout.CENTER);
 
@@ -96,6 +110,7 @@ public class PresentationApp extends JFrame {
 
         // 注册撤销管理器监听器，当内容发生变化时刷新预览
         undoManager.addListener(() -> {
+            isModified = true; // 标记为已修改
             previewPanel.refreshPreviews();
             editorPanel.repaint(); // 确保编辑区也重绘
         });
@@ -132,11 +147,16 @@ public class PresentationApp extends JFrame {
         newMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N, InputEvent.CTRL_DOWN_MASK));// 设置全局快捷键Ctrl+N
         // lambda表达式简化代码
         newMenuItem.addActionListener(_ -> {
+            if (!confirmSaveIfNeeded())
+                return;
+
             // 新建幻灯片
             this.slide = new Slide();
             this.slide.addPage(new SlidePage());
-            editorPanel.setSlidePage(this.slide.getCurrentPage());
+            editorPanel.setSlide(this.slide);
             undoManager.clear();
+            isModified = false;
+            currentFile = null;
 
             // 更新预览列表
             previewPanel.updateSlideList(slide.getAllPages());
@@ -148,6 +168,8 @@ public class PresentationApp extends JFrame {
         openMenuItem.setMnemonic(KeyEvent.VK_O);
         openMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O, InputEvent.CTRL_DOWN_MASK));
         openMenuItem.addActionListener(_ -> {
+            if (!confirmSaveIfNeeded())
+                return;
             openSlide();
             updatePageStatus();
         });
@@ -155,14 +177,27 @@ public class PresentationApp extends JFrame {
         saveMenuItem.setMnemonic(KeyEvent.VK_S);
         saveMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_DOWN_MASK));
         saveMenuItem.addActionListener(_ -> saveSlide());
+
+        JMenuItem saveAsMenuItem = new JMenuItem("另存为(A)...");
+        saveAsMenuItem.setMnemonic(KeyEvent.VK_A);
+        saveAsMenuItem.addActionListener(_ -> saveSlideAs());
+
+        JMenuItem pageSetupMenuItem = new JMenuItem("页面设置(P)...");
+        pageSetupMenuItem.setMnemonic(KeyEvent.VK_P);
+        pageSetupMenuItem.addActionListener(_ -> showPageSetupDialog());
+
         JMenuItem exportImageMenuItem = new JMenuItem("导出为图片(E)...");
         exportImageMenuItem.setMnemonic(KeyEvent.VK_E);
         exportImageMenuItem.addActionListener(_ -> exportCurrentPageAsImage());
         JMenuItem exportPDFMenuItem = new JMenuItem("导出为PDF...");
+        exportPDFMenuItem.addActionListener(_ -> exportToPDF());
         fileMenu.add(newMenuItem);
         fileMenu.addSeparator();
         fileMenu.add(openMenuItem);
         fileMenu.add(saveMenuItem);
+        fileMenu.add(saveAsMenuItem);
+        fileMenu.addSeparator();
+        fileMenu.add(pageSetupMenuItem);
         fileMenu.addSeparator();
         fileMenu.add(exportImageMenuItem);
         fileMenu.add(exportPDFMenuItem);
@@ -332,6 +367,16 @@ public class PresentationApp extends JFrame {
         transitionMenu.add(slideItem);
         transitionMenu.add(zoomItem);
 
+        JMenu helpMenu = new JMenu("帮助(H)");
+        helpMenu.setMnemonic(KeyEvent.VK_H);
+        JMenuItem aboutMenuItem = new JMenuItem("关于(A)");
+        aboutMenuItem.setMnemonic(KeyEvent.VK_A);
+        aboutMenuItem.addActionListener(_ -> JOptionPane.showMessageDialog(this,
+                "Java大作业，作者赵梓恒，叶俊翔，杨武显，时间2025年11月",
+                "关于 PowerDot",
+                JOptionPane.INFORMATION_MESSAGE));
+        helpMenu.add(aboutMenuItem);
+
         menuBar.add(fileMenu);
         menuBar.add(editMenu);
         menuBar.add(insertMenu);
@@ -339,6 +384,7 @@ public class PresentationApp extends JFrame {
         menuBar.add(viewMenu);
         menuBar.add(slideshowMenu);
         menuBar.add(transitionMenu);
+        menuBar.add(helpMenu);
         setJMenuBar(menuBar);
     }
 
@@ -494,26 +540,53 @@ public class PresentationApp extends JFrame {
         });
         toolBar.add(fontSizeButton);
 
-        toolBar.addSeparator();
-        toolBar.add(new JLabel(" 缩放: "));
-        String[] zoomLevels = { "50%", "75%", "100%", "125%", "150%", "200%" };
-        JComboBox<String> zoomComboBox = new JComboBox<>(zoomLevels);
-        zoomComboBox.setSelectedItem("100%");
-        zoomComboBox.setMaximumSize(new Dimension(80, 30));
-        zoomComboBox.setFocusable(false);
-        zoomComboBox.addActionListener(_ -> {
-            String selected = (String) zoomComboBox.getSelectedItem();
-            if (selected != null) {
-                String value = selected.replace("%", "");
-                try {
-                    double scale = Double.parseDouble(value) / 100.0;
-                    editorPanel.setScaleFactor(scale);
-                } catch (NumberFormatException ex) {
-                    ex.printStackTrace();
+        // 边框粗细按钮
+        JButton borderThicknessButton = new JButton("边框粗细");
+        borderThicknessButton.setToolTipText("设置边框粗细");
+        borderThicknessButton.setFocusPainted(false);
+        borderThicknessButton.addActionListener(_ -> {
+            SlideElement selected = editorPanel.getSelectedElement();
+            if (selected instanceof ShapeElement shape) {
+                String input = JOptionPane.showInputDialog(this, "请输入边框粗细:", shape.getBorderThickness());
+                if (input != null) {
+                    try {
+                        int newThickness = Integer.parseInt(input);
+                        if (newThickness >= 0) {
+                            int oldThickness = shape.getBorderThickness();
+                            Command cmd = new ChangeElementPropertyCommand(() -> shape.setBorderThickness(newThickness),
+                                    () -> shape.setBorderThickness(oldThickness));
+                            undoManager.executeCommand(cmd);
+                            editorPanel.repaint();
+                        } else {
+                            JOptionPane.showMessageDialog(this, "边框粗细必须大于等于0。");
+                        }
+                    } catch (NumberFormatException ex) {
+                        JOptionPane.showMessageDialog(this, "请输入有效的整数。");
+                    }
                 }
+            } else if (selected instanceof LineElement line) {
+                String input = JOptionPane.showInputDialog(this, "请输入线条粗细:", line.getThickness());
+                if (input != null) {
+                    try {
+                        int newThickness = Integer.parseInt(input);
+                        if (newThickness > 0) {
+                            int oldThickness = line.getThickness();
+                            Command cmd = new ChangeElementPropertyCommand(() -> line.setThickness(newThickness),
+                                    () -> line.setThickness(oldThickness));
+                            undoManager.executeCommand(cmd);
+                            editorPanel.repaint();
+                        } else {
+                            JOptionPane.showMessageDialog(this, "线条粗细必须大于0。");
+                        }
+                    } catch (NumberFormatException ex) {
+                        JOptionPane.showMessageDialog(this, "请输入有效的整数。");
+                    }
+                }
+            } else {
+                JOptionPane.showMessageDialog(this, "请先选择一个图形或线条。");
             }
         });
-        toolBar.add(zoomComboBox);
+        toolBar.add(borderThicknessButton);
 
         add(toolBar, BorderLayout.NORTH);
     }
@@ -545,9 +618,11 @@ public class PresentationApp extends JFrame {
     }
 
     private void createStatusBar() {
-        JPanel statusBar = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 5));
+        JPanel statusBar = new JPanel(new BorderLayout());
         statusBar.setBorder(BorderFactory.createEtchedBorder());
 
+        // Navigation Panel (Center)
+        JPanel navPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 5));
         prevPageButton = new JButton("<");
         nextPageButton = new JButton(">");
         pageStatusLabel = new JLabel();
@@ -568,9 +643,33 @@ public class PresentationApp extends JFrame {
             }
         });
 
-        statusBar.add(prevPageButton);
-        statusBar.add(pageStatusLabel);
-        statusBar.add(nextPageButton);
+        navPanel.add(prevPageButton);
+        navPanel.add(pageStatusLabel);
+        navPanel.add(nextPageButton);
+        statusBar.add(navPanel, BorderLayout.CENTER);
+
+        // Zoom Panel (Right)
+        JPanel zoomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 5));
+        zoomPanel.add(new JLabel("缩放: "));
+        String[] zoomLevels = { "50%", "75%", "100%", "125%", "150%", "200%" };
+        JComboBox<String> zoomComboBox = new JComboBox<>(zoomLevels);
+        zoomComboBox.setSelectedItem("100%");
+        zoomComboBox.setPreferredSize(new Dimension(80, 25));
+        zoomComboBox.setFocusable(false);
+        zoomComboBox.addActionListener(_ -> {
+            String selected = (String) zoomComboBox.getSelectedItem();
+            if (selected != null) {
+                String value = selected.replace("%", "");
+                try {
+                    double scale = Double.parseDouble(value) / 100.0;
+                    editorPanel.setScaleFactor(scale);
+                } catch (NumberFormatException ex) {
+                    ex.printStackTrace();
+                }
+            }
+        });
+        zoomPanel.add(zoomComboBox);
+        statusBar.add(zoomPanel, BorderLayout.EAST);
 
         add(statusBar, BorderLayout.SOUTH);
     }
@@ -598,32 +697,54 @@ public class PresentationApp extends JFrame {
         fileChooser.setFileFilter(new FileNameExtensionFilter("图片文件", "png", "jpg", "jpeg", "gif"));
         if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
             try {
-                ImageElement newImage = new ImageElement(100, 100, fileChooser.getSelectedFile().getAbsolutePath());
-                Command cmd = new AddElementCommand(editorPanel.getCurrentPage(), newImage);
-                undoManager.executeCommand(cmd);
-                editorPanel.repaint();
+                BufferedImage image = ImageIO.read(fileChooser.getSelectedFile());
+                if (image != null) {
+                    ImageElement newImage = new ImageElement(100, 100, image);
+                    Command cmd = new AddElementCommand(editorPanel.getCurrentPage(), newImage);
+                    undoManager.executeCommand(cmd);
+                    editorPanel.repaint();
+                } else {
+                    JOptionPane.showMessageDialog(this, "无法读取图片文件。", "错误", JOptionPane.ERROR_MESSAGE);
+                }
             } catch (IOException ex) {
                 JOptionPane.showMessageDialog(this, "图片加载失败: " + ex.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
             }
         }
     }
 
-    private void saveSlide() {
+    private boolean saveSlide() {
+        if (currentFile != null) {
+            return saveToFile(currentFile);
+        } else {
+            return saveSlideAs();
+        }
+    }
+
+    private boolean saveSlideAs() {
         JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setDialogTitle("保存幻灯片");
+        fileChooser.setDialogTitle("另存为");
         fileChooser.setFileFilter(new FileNameExtensionFilter("幻灯片文件 (*.slide)", "slide"));
         if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
             File fileToSave = fileChooser.getSelectedFile();
             if (!fileToSave.getName().toLowerCase().endsWith(".slide")) {
                 fileToSave = new File(fileToSave.getParentFile(), fileToSave.getName() + ".slide");
             }
-            try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(fileToSave))) {
-                oos.writeObject(slide);
-                JOptionPane.showMessageDialog(this, "保存成功！");
-            } catch (IOException ex) {
-                ex.printStackTrace();
-                JOptionPane.showMessageDialog(this, "保存失败: " + ex.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
-            }
+            currentFile = fileToSave;
+            return saveToFile(currentFile);
+        }
+        return false;
+    }
+
+    private boolean saveToFile(File file) {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(file))) {
+            oos.writeObject(slide);
+            isModified = false;
+            JOptionPane.showMessageDialog(this, "保存成功！");
+            return true;
+        } catch (IOException ex) {
+            ex.printStackTrace();
+            JOptionPane.showMessageDialog(this, "保存失败: " + ex.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
+            return false;
         }
     }
 
@@ -635,14 +756,23 @@ public class PresentationApp extends JFrame {
             File fileToOpen = fileChooser.getSelectedFile();
             try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(fileToOpen))) {
                 slide = (Slide) ois.readObject();
-                editorPanel.setSlidePage(slide.getCurrentPage());
+                editorPanel.setSlide(slide);
                 undoManager.clear();
+                isModified = false;
+
+                currentFile = fileToOpen;
 
                 // 更新预览列表
                 previewPanel.updateSlideList(slide.getAllPages());
                 previewPanel.setSelectedPage(slide.getCurrentPageIndex());
 
+                currentFile = fileToOpen; // 更新当前文件
+
                 JOptionPane.showMessageDialog(this, "打开成功！");
+            } catch (java.io.InvalidClassException ex) {
+                ex.printStackTrace();
+                JOptionPane.showMessageDialog(this, "文件版本不兼容，无法打开此文件。\n" + ex.getMessage(), "版本错误",
+                        JOptionPane.ERROR_MESSAGE);
             } catch (IOException | ClassNotFoundException ex) {
                 ex.printStackTrace();
                 JOptionPane.showMessageDialog(this, "打开失败: " + ex.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
@@ -660,12 +790,54 @@ public class PresentationApp extends JFrame {
                 fileToSave = new File(fileToSave.getParentFile(), fileToSave.getName() + ".png");
             }
             try {
-                BufferedImage image = new BufferedImage(editorPanel.getWidth(), editorPanel.getHeight(),
-                        BufferedImage.TYPE_INT_ARGB);
+                int width = slide.getWidth();
+                int height = slide.getHeight();
+                BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
                 Graphics2D g2d = image.createGraphics();
-                editorPanel.paint(g2d);
+
+                // 设置抗锯齿
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+                SlidePage currentPage = slide.getCurrentPage();
+                if (currentPage != null) {
+                    // 绘制背景
+                    g2d.setColor(currentPage.getBackgroundColor());
+                    g2d.fillRect(0, 0, width, height);
+                    if (currentPage.getBackgroundImage() != null) {
+                        g2d.drawImage(currentPage.getBackgroundImage(), 0, 0, width, height, null);
+                    }
+
+                    // 绘制元素
+                    for (SlideElement element : currentPage.getElements()) {
+                        element.draw(g2d);
+                    }
+                } else {
+                    g2d.setColor(Color.WHITE);
+                    g2d.fillRect(0, 0, width, height);
+                }
+
                 g2d.dispose();
                 ImageIO.write(image, "png", fileToSave);
+                JOptionPane.showMessageDialog(this, "导出成功！");
+            } catch (IOException ex) {
+                ex.printStackTrace();
+                JOptionPane.showMessageDialog(this, "导出失败: " + ex.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void exportToPDF() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("导出为PDF");
+        fileChooser.setFileFilter(new FileNameExtensionFilter("PDF 文档 (*.pdf)", "pdf"));
+        if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+            File fileToSave = fileChooser.getSelectedFile();
+            if (!fileToSave.getName().toLowerCase().endsWith(".pdf")) {
+                fileToSave = new File(fileToSave.getParentFile(), fileToSave.getName() + ".pdf");
+            }
+            try {
+                SimplePdfExporter.export(slide, fileToSave);
                 JOptionPane.showMessageDialog(this, "导出成功！");
             } catch (IOException ex) {
                 ex.printStackTrace();
@@ -719,7 +891,57 @@ public class PresentationApp extends JFrame {
         editorPanel.repaint();
     }
 
+    private void showPageSetupDialog() {
+        javax.swing.JTextField widthField = new javax.swing.JTextField(String.valueOf(slide.getWidth()));
+        javax.swing.JTextField heightField = new javax.swing.JTextField(String.valueOf(slide.getHeight()));
+        Object[] message = {
+                "宽度:", widthField,
+                "高度:", heightField
+        };
+
+        int option = JOptionPane.showConfirmDialog(this, message, "页面设置", JOptionPane.OK_CANCEL_OPTION);
+        if (option == JOptionPane.OK_OPTION) {
+            try {
+                int width = Integer.parseInt(widthField.getText());
+                int height = Integer.parseInt(heightField.getText());
+                if (width > 0 && height > 0) {
+                    slide.setWidth(width);
+                    slide.setHeight(height);
+                    editorPanel.zoomToFit();
+                    previewPanel.refreshPreviews();
+                    isModified = true;
+                } else {
+                    JOptionPane.showMessageDialog(this, "宽度和高度必须大于0。");
+                }
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(this, "请输入有效的整数。");
+            }
+        }
+    }
+
+    private boolean confirmSaveIfNeeded() {
+        if (!isModified) {
+            return true;
+        }
+        int result = JOptionPane.showConfirmDialog(this, "当前演示文稿已修改，是否保存？", "保存修改", JOptionPane.YES_NO_CANCEL_OPTION);
+        if (result == JOptionPane.YES_OPTION) {
+            return saveSlide();
+        } else if (result == JOptionPane.NO_OPTION) {
+            return true; // Proceed without saving
+        } else {
+            return false; // Cancel
+        }
+    }
+
+    private void exitApp() {
+        if (confirmSaveIfNeeded()) {
+            System.exit(0);
+        }
+    }
+
     public static void main(String[] args) {
+        SplashScreen splash = new SplashScreen(500);
+        splash.showSplash();
         SwingUtilities.invokeLater(PresentationApp::new);
     }
 }

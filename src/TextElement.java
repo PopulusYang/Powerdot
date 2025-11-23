@@ -27,6 +27,11 @@ public class TextElement extends SlideElement {
     @Override
     public void draw(Graphics g) {
         Graphics2D g2d = (Graphics2D) g.create();
+
+        if (rotation != 0) {
+            g2d.rotate(Math.toRadians(rotation), x + width / 2.0, y + height / 2.0);
+        }
+
         // 移除默认的灰色边框
         // g2d.setColor(Color.LIGHT_GRAY);
         // g2d.drawRect(x, y, width, height);
@@ -81,7 +86,12 @@ public class TextElement extends SlideElement {
 
     @Override
     public boolean contains(Point p) {
-        return new Rectangle(x, y, width, height).contains(p);
+        if (rotation == 0) {
+            return new Rectangle(x, y, width, height).contains(p);
+        }
+        Point center = new Point(x + width / 2, y + height / 2);
+        Point rotatedP = rotatePoint(p, center, -rotation);
+        return new Rectangle(x, y, width, height).contains(rotatedP);
     }
 
     @Override

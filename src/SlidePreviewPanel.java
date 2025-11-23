@@ -1,5 +1,11 @@
+import java.io.File;
+import java.io.IOException;
+import javax.imageio.ImageIO;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 
 public class SlidePreviewPanel extends JPanel {
@@ -30,6 +36,85 @@ public class SlidePreviewPanel extends JPanel {
         JScrollPane scrollPane = new JScrollPane(previewList);
         scrollPane.setBorder(null);
         add(scrollPane, BorderLayout.CENTER);
+
+        // 添加右键菜单
+        previewList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                if (SwingUtilities.isRightMouseButton(e)) {
+                    int index = previewList.locationToIndex(e.getPoint());
+                    if (index != -1) {
+                        previewList.setSelectedIndex(index);
+                    }
+                    showPopupMenu(e.getPoint());
+                }
+            }
+        });
+    }
+
+    private void showPopupMenu(Point p) {
+        JPopupMenu popup = new JPopupMenu();
+        JMenuItem addPageItem = new JMenuItem("添加新页面");
+        addPageItem.addActionListener(e -> addNewPage());
+
+        JMenuItem changeColorItem = new JMenuItem("改变主题颜色");
+        changeColorItem.addActionListener(e -> changeThemeColor());
+
+        JMenuItem changeBgImageItem = new JMenuItem("更改背景图片");
+        changeBgImageItem.addActionListener(e -> changeBackgroundImage());
+
+        popup.add(addPageItem);
+        popup.add(changeColorItem);
+        popup.add(changeBgImageItem);
+        popup.show(previewList, p.x, p.y);
+    }
+
+    private void addNewPage() {
+        SlidePage newPage = new SlidePage();
+        app.getSlide().addPage(newPage);
+        updateSlideList(app.getSlide().getAllPages());
+        int newIndex = app.getSlide().getTotalPages() - 1;
+        setSelectedPage(newIndex);
+        app.jumpToPage(newIndex);
+    }
+
+    private void changeThemeColor() {
+        int index = previewList.getSelectedIndex();
+        if (index != -1) {
+            SlidePage page = listModel.getElementAt(index);
+            Color newColor = JColorChooser.showDialog(this, "选择主题颜色", page.getBackgroundColor());
+            if (newColor != null) {
+                page.setBackgroundColor(newColor);
+                refreshPreviews();
+                app.repaint();
+            }
+        }
+    }
+
+    private void changeBackgroundImage() {
+        int index = previewList.getSelectedIndex();
+        if (index != -1) {
+            SlidePage page = listModel.getElementAt(index);
+            JFileChooser fileChooser = new JFileChooser();
+            fileChooser.setDialogTitle("选择背景图片");
+            fileChooser.setFileFilter(new FileNameExtensionFilter("图片文件 (*.png, *.jpg, *.jpeg)", "png", "jpg", "jpeg"));
+            if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+                File file = fileChooser.getSelectedFile();
+                try {
+                    BufferedImage image = ImageIO.read(file);
+                    if (image != null) {
+                        page.setBackgroundImage(image);
+                        refreshPreviews();
+                        app.repaint();
+                    } else {
+                        JOptionPane.showMessageDialog(this, "无法加载图片。", "错误", JOptionPane.ERROR_MESSAGE);
+                    }
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                    JOptionPane.showMessageDialog(this, "加载图片失败: " + ex.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        }
     }
 
     public void updateSlideList(java.util.List<SlidePage> pages) {
@@ -61,7 +146,7 @@ public class SlidePreviewPanel extends JPanel {
             indexLabel.setVerticalAlignment(SwingConstants.TOP);
 
             imagePanel = new ImagePanel();
-            imagePanel.setPreferredSize(new Dimension(160, 106)); // 1200x800 的比例缩小
+            imagePanel.setPreferredSize(new Dimension(160, 90)); // 1280x720 的比例缩小
             imagePanel.setBorder(BorderFactory.createLineBorder(Color.GRAY));
 
             add(indexLabel, BorderLayout.WEST);
@@ -73,6 +158,13 @@ public class SlidePreviewPanel extends JPanel {
                 boolean isSelected, boolean cellHasFocus) {
             indexLabel.setText(String.valueOf(index + 1));
             imagePanel.setPage(value);
+
+            // Update preferred size based on current slide dimensions
+            int slideWidth = app.getSlide().getWidth();
+            int slideHeight = app.getSlide().getHeight();
+            int thumbWidth = 160;
+            int thumbHeight = (int) ((double) slideHeight / slideWidth * thumbWidth);
+            imagePanel.setPreferredSize(new Dimension(thumbWidth, thumbHeight));
 
             if (isSelected) {
                 setBackground(new Color(230, 240, 255));
@@ -86,7 +178,7 @@ public class SlidePreviewPanel extends JPanel {
         }
     }
 
-    private static class ImagePanel extends JPanel {
+    private class ImagePanel extends JPanel {
         private SlidePage page;
 
         public void setPage(SlidePage page) {
@@ -110,13 +202,20 @@ public class SlidePreviewPanel extends JPanel {
             g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
-            // 填充白色背景
-            g2d.setColor(Color.WHITE);
+            // 填充背景
+            g2d.setColor(page.getBackgroundColor());
             g2d.fillRect(0, 0, width, height);
 
+            if (page.getBackgroundImage() != null) {
+                g2d.drawImage(page.getBackgroundImage(), 0, 0, width, height, null);
+            }
+
             // 计算缩放比例
-            double scaleX = (double) width / 1200;
-            double scaleY = (double) height / 800;
+            int slideWidth = app.getSlide().getWidth();
+            int slideHeight = app.getSlide().getHeight();
+
+            double scaleX = (double) width / slideWidth;
+            double scaleY = (double) height / slideHeight;
             double scale = Math.min(scaleX, scaleY);
 
             g2d.scale(scale, scale);

@@ -1,3 +1,4 @@
+
 // 文件名： LineElement.java
 // 功能： 表示幻灯片中的一条直线元素
 import java.awt.*;
@@ -21,6 +22,13 @@ public class LineElement extends SlideElement {
     @Override
     public void draw(Graphics g) {
         Graphics2D g2d = (Graphics2D) g.create();
+
+        if (rotation != 0) {
+            int cx = (x + x2) / 2;
+            int cy = (y + y2) / 2;
+            g2d.rotate(Math.toRadians(rotation), cx, cy);
+        }
+
         g2d.setColor(color);
         g2d.setStroke(new BasicStroke(thickness));
         g2d.drawLine(x, y, x2, y2);
@@ -29,7 +37,12 @@ public class LineElement extends SlideElement {
 
     @Override
     public boolean contains(Point p) {
-        return getBounds().contains(p);
+        if (rotation == 0) {
+            return getBounds().contains(p);
+        }
+        Point center = new Point((x + x2) / 2, (y + y2) / 2);
+        Point rotatedP = rotatePoint(p, center, -rotation);
+        return getBounds().contains(rotatedP);
     }
 
     @Override
@@ -55,6 +68,14 @@ public class LineElement extends SlideElement {
 
     public Color getColor() {
         return this.color;
+    }
+
+    public int getThickness() {
+        return thickness;
+    }
+
+    public void setThickness(int thickness) {
+        this.thickness = thickness;
     }
 
     /**
