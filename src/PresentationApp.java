@@ -369,6 +369,12 @@ public class PresentationApp extends JFrame {
 
         JMenu helpMenu = new JMenu("帮助(H)");
         helpMenu.setMnemonic(KeyEvent.VK_H);
+
+        JMenuItem tutorialMenuItem = new JMenuItem("使用教程(T)");
+        tutorialMenuItem.setMnemonic(KeyEvent.VK_T);
+        tutorialMenuItem.addActionListener(_ -> showTutorial());
+        helpMenu.add(tutorialMenuItem);
+
         JMenuItem aboutMenuItem = new JMenuItem("关于(A)");
         aboutMenuItem.setMnemonic(KeyEvent.VK_A);
         aboutMenuItem.addActionListener(_ -> JOptionPane.showMessageDialog(this,
@@ -931,6 +937,79 @@ public class PresentationApp extends JFrame {
         } else {
             return false; // Cancel
         }
+    }
+
+    private void showTutorial() {
+        if (!confirmSaveIfNeeded()) {
+            return;
+        }
+
+        slide = new Slide();
+
+        // Page 1: Welcome
+        SlidePage page1 = new SlidePage();
+        TextElement title1 = new TextElement("欢迎使用 PowerDot", 400, 200, 500, 80);
+        title1.setFont(new Font("微软雅黑", Font.BOLD, 48));
+        title1.setColor(Color.BLUE);
+        page1.addElement(title1);
+
+        TextElement content1 = new TextElement("这是一个简单的幻灯片制作软件。", 450, 300, 400, 40);
+        content1.setFont(new Font("宋体", Font.PLAIN, 24));
+        page1.addElement(content1);
+        slide.addPage(page1);
+
+        // Page 2: Basic Operations
+        SlidePage page2 = new SlidePage();
+        TextElement title2 = new TextElement("基本操作", 50, 50, 300, 50);
+        title2.setFont(new Font("微软雅黑", Font.BOLD, 36));
+        page2.addElement(title2);
+
+        TextElement content2 = new TextElement("使用工具栏或菜单插入文本、形状和图片。", 50, 120, 600, 40);
+        content2.setFont(new Font("宋体", Font.PLAIN, 24));
+        page2.addElement(content2);
+
+        RectangleElement rect = new RectangleElement(100, 200, 150, 100, Color.BLACK, Color.YELLOW, 2);
+        page2.addElement(rect);
+
+        CircleElement circle = new CircleElement(300, 200, 100, Color.BLACK, Color.GREEN, 2);
+        page2.addElement(circle);
+
+        LineElement line = new LineElement(500, 200, 700, 300, Color.RED, 4);
+        page2.addElement(line);
+        slide.addPage(page2);
+
+        // Page 3: Editing
+        SlidePage page3 = new SlidePage();
+        TextElement title3 = new TextElement("编辑功能", 50, 50, 300, 50);
+        title3.setFont(new Font("微软雅黑", Font.BOLD, 36));
+        page3.addElement(title3);
+
+        TextElement content3 = new TextElement("点击元素进行选中，拖动调整位置，右侧属性栏修改颜色和字体。", 50, 120, 800, 40);
+        content3.setFont(new Font("宋体", Font.PLAIN, 24));
+        page3.addElement(content3);
+        slide.addPage(page3);
+
+        // Page 4: Slideshow
+        SlidePage page4 = new SlidePage();
+        TextElement title4 = new TextElement("幻灯片放映", 50, 50, 300, 50);
+        title4.setFont(new Font("微软雅黑", Font.BOLD, 36));
+        page4.addElement(title4);
+
+        TextElement content4 = new TextElement("点击'放映'菜单开始播放，支持多种过渡动画。", 50, 120, 600, 40);
+        content4.setFont(new Font("宋体", Font.PLAIN, 24));
+        page4.addElement(content4);
+        slide.addPage(page4);
+
+        // Update UI
+        slide.setCurrentPageIndex(0);
+        editorPanel.setSlide(slide);
+        undoManager.clear();
+        isModified = false;
+        currentFile = null;
+
+        previewPanel.updateSlideList(slide.getAllPages());
+        previewPanel.setSelectedPage(0);
+        updatePageStatus();
     }
 
     private void exitApp() {
