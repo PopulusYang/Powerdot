@@ -1,9 +1,9 @@
-import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import javax.imageio.ImageIO;
 
 public class ImageElement extends SlideElement {
     private transient BufferedImage image;
@@ -35,6 +35,10 @@ public class ImageElement extends SlideElement {
         }
         g2d.dispose();
     }
+    @Override
+public Point getRotationCenter() {
+    return new Point(x + width / 2, y + height / 2);
+}
 
     @Override
     public boolean contains(Point p) {

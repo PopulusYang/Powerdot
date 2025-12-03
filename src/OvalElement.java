@@ -7,6 +7,10 @@ public class OvalElement extends ShapeElement {
     public OvalElement(int x, int y, int width, int height, Color borderColor, Color fillColor, int borderThickness) {
         super(x, y, width, height, borderColor, fillColor, borderThickness);
     }
+    @Override
+public Point getRotationCenter() {
+    return new Point(x + width / 2, y + height / 2);
+}
 
     @Override
     public void draw(Graphics g) {

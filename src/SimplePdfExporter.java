@@ -77,11 +77,7 @@ public class SimplePdfExporter {
             g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
             // Draw background
-            g2d.setColor(page.getBackgroundColor());
-            g2d.fillRect(0, 0, width, height);
-            if (page.getBackgroundImage() != null) {
-                g2d.drawImage(page.getBackgroundImage(), 0, 0, width, height, null);
-            }
+            page.renderBackground(g2d, width, height);
             // Draw elements
             for (SlideElement element : page.getElements()) {
                 element.draw(g2d);

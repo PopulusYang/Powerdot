@@ -202,13 +202,8 @@ public class SlidePreviewPanel extends JPanel {
             g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
-            // 填充背景
-            g2d.setColor(page.getBackgroundColor());
-            g2d.fillRect(0, 0, width, height);
-
-            if (page.getBackgroundImage() != null) {
-                g2d.drawImage(page.getBackgroundImage(), 0, 0, width, height, null);
-            }
+            // 填充背景（支持纯色/渐变/图片）
+            page.renderBackground(g2d, width, height);
 
             // 计算缩放比例
             int slideWidth = app.getSlide().getWidth();

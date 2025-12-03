@@ -178,14 +178,8 @@ public class SlideshowPlayer extends JDialog {
         BufferedImage image = new BufferedImage(designWidth, designHeight, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2d = image.createGraphics();
 
-        // 绘制背景颜色
-        g2d.setColor(page.getBackgroundColor());
-        g2d.fillRect(0, 0, designWidth, designHeight);
-
-        // 绘制背景图片
-        if (page.getBackgroundImage() != null) {
-            g2d.drawImage(page.getBackgroundImage(), 0, 0, designWidth, designHeight, null);
-        }
+        // Draw background (color / gradient / image)
+        page.renderBackground(g2d, designWidth, designHeight);
 
         for (SlideElement element : page.getElements()) {
             element.draw(g2d);

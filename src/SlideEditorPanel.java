@@ -2,19 +2,18 @@
 // SlideEditorPanel类
 // 功能：幻灯片编辑面板，处理元素的绘制和交互
 // 编辑ppt的核心
-import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.List;
+import javax.swing.*;
 
 public class SlideEditorPanel extends JPanel {
     private SlidePage currentPage;// 当前编辑的幻灯片页面
     private Slide currentSlide; // 当前幻灯片对象，用于获取尺寸
     private SlideElement selectedElement = null;// 当前选中的幻灯片元素
     private Point lastMousePoint;// 上一次鼠标位置
-
     private enum State {
         IDLE, MOVING, RESIZING, PANNING, ROTATING
     } // 三种编辑状态
@@ -34,7 +33,7 @@ public class SlideEditorPanel extends JPanel {
 
     private JTextArea activeTextEditor = null;
     private TextElement editingElement = null;
-
+    
     public SlideEditorPanel(Slide slide)// 构造函数
     {
         this.currentSlide = slide;
@@ -55,6 +54,11 @@ public class SlideEditorPanel extends JPanel {
                     setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
                 } else if (e.getKeyCode() == KeyEvent.VK_DELETE) {
                     deleteSelectedElement();
+                } else if (e.getKeyCode() == KeyEvent.VK_BACK_SPACE) {
+                    // 在非编辑状态下按退格键删除当前选中元素
+                    if (activeTextEditor == null && selectedElement != null) {
+                        deleteSelectedElement();
+                    }
                 }
             }
 
@@ -86,6 +90,20 @@ public class SlideEditorPanel extends JPanel {
         return scaleFactor;
     }
 
+    /** 设置缩放并自动将幻灯片居中，避免在缩放后偏移。 */
+    public void setScaleAndCenter(double scale) {
+        stopEditingText();
+        // 限制缩放范围，避免过小或过大
+        this.scaleFactor = Math.max(0.1, Math.min(5.0, scale));
+        recenterSlide();
+        repaint();
+    }
+
+    /** 按百分比设置缩放并居中，例如 100 -> 1.0。 */
+    public void setZoomPercent(double percent) {
+        setScaleAndCenter(percent / 100.0);
+    }
+
     public void setTranslate(int x, int y) {
         stopEditingText();
         this.translateX = x;
@@ -95,6 +113,19 @@ public class SlideEditorPanel extends JPanel {
 
     public Point getTranslate() {
         return new Point(translateX, translateY);
+    }
+
+    /** 根据当前缩放将幻灯片居中。 */
+    private void recenterSlide() {
+        if (currentSlide == null) {
+            return;
+        }
+        int panelWidth = Math.max(getWidth(), 1);
+        int panelHeight = Math.max(getHeight(), 1);
+        int designWidth = currentSlide.getWidth();
+        int designHeight = currentSlide.getHeight();
+        translateX = (int) ((panelWidth - designWidth * scaleFactor) / 2);
+        translateY = (int) ((panelHeight - designHeight * scaleFactor) / 2);
     }
 
     // 将屏幕坐标转换为逻辑坐标
@@ -147,12 +178,7 @@ public class SlideEditorPanel extends JPanel {
 
         // 绘制幻灯片背景
         if (currentPage != null) {
-            g.setColor(currentPage.getBackgroundColor());
-            g.fillRect(0, 0, currentSlide.getWidth(), currentSlide.getHeight());
-            if (currentPage.getBackgroundImage() != null) {
-                g.drawImage(currentPage.getBackgroundImage(), 0, 0, currentSlide.getWidth(), currentSlide.getHeight(),
-                        null);
-            }
+            currentPage.renderBackground(g2d, currentSlide.getWidth(), currentSlide.getHeight());
         }
 
         // 绘制幻灯片边界
@@ -162,25 +188,20 @@ public class SlideEditorPanel extends JPanel {
         if (currentPage != null) {
             // 绘制该页所有元素
             for (SlideElement element : currentPage.getElements()) {
-                if (element == editingElement)
+                // 正在编辑的元素由 JTextArea 显示，避免与绘制态重叠
+                if (element == editingElement) {
                     continue;
+                }
                 element.draw(g);
             }
             // 绘制选中元素的边框和控制点
             if (selectedElement != null) {
                 java.awt.geom.AffineTransform originalSelectionTransform = g2d.getTransform();
 
-                if (selectedElement.getRotation() != 0) {
+                if (selectedElement.getRotation() != 0&&!(selectedElement instanceof LineElement)) {
                     Rectangle bounds = selectedElement.getBounds();
                     Point center;
-                    if (selectedElement instanceof LineElement) {
-                        LineElement line = (LineElement) selectedElement;
-                        Point start = line.getStartPoint();
-                        Point end = line.getEndPoint();
-                        center = new Point((start.x + end.x) / 2, (start.y + end.y) / 2);
-                    } else {
                         center = new Point(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
-                    }
                     g2d.rotate(Math.toRadians(selectedElement.getRotation()), center.x, center.y);
                 }
 
@@ -236,7 +257,7 @@ public class SlideEditorPanel extends JPanel {
                 }
 
                 Point topCenter = new Point(center.x, bounds.y);
-
+             if (!(selectedElement instanceof LineElement)) {
                 g2d.setColor(Color.BLACK);
                 g2d.setStroke(new BasicStroke(1));
                 g2d.drawLine(topCenter.x, topCenter.y, handleCenter.x, handleCenter.y);
@@ -245,7 +266,7 @@ public class SlideEditorPanel extends JPanel {
                 g2d.fillOval(handleBounds.x, handleBounds.y, handleBounds.width, handleBounds.height);
                 g2d.setColor(Color.BLACK);
                 g2d.drawOval(handleBounds.x, handleBounds.y, handleBounds.width, handleBounds.height);
-
+                 }
                 g2d.setTransform(originalSelectionTransform);
             }
         }
@@ -330,11 +351,17 @@ public class SlideEditorPanel extends JPanel {
         // 鼠标按下事件处理
         @Override
         public void mousePressed(MouseEvent e) {
+            if(activeTextEditor != null&&editingElement != null) {
+                Point logical =panel.toLogical(e.getPoint());
+                if(!editingElement.contains(logical)){
+                    panel.stopEditingText();
+                   panel.requestFocusInWindow();
+                }
+            }
             if (e.isPopupTrigger()) {
                 handlePopup(e);
                 return;
             }
-
             // 检查是否是中键点击或者按住Space键，如果是则进入平移模式
             // 注意：BUTTON1_DOWN_MASK 是左键
             if (SwingUtilities.isMiddleMouseButton(e)
@@ -350,7 +377,7 @@ public class SlideEditorPanel extends JPanel {
             panel.lastMousePoint = logicalPoint;// 获取鼠标位置
 
             // Check rotation handle
-            if (panel.selectedElement != null) {
+            if (panel.selectedElement != null && !(panel.selectedElement instanceof LineElement)) {
                 Rectangle rotationHandle = panel.getRotationHandleBounds(panel.selectedElement);
                 if (rotationHandle.contains(localPoint)) {
                     panel.currentState = State.ROTATING;
@@ -435,10 +462,25 @@ public class SlideEditorPanel extends JPanel {
             /* 移动或编辑文本 */
             if (elementUnderMouse != null) {
                 // 双击文本元素
-                if (e.getClickCount() == 2 && elementUnderMouse instanceof TextElement textElement) {
-                    panel.startEditingText(textElement);
-                    return;
+                if (elementUnderMouse instanceof TextElement textElement) {
+                        Rectangle textArea = getTextContentBounds(textElement, panel.getGraphics());
+                        if (textArea.contains(localPoint)) {
+                            if ("双击以编辑文本".equals(textElement.getText())) {
+                                textElement.setText(""); // 清空占位（按需）
+                            }
+                            panel.selectedElement = textElement;
+                            panel.startEditingText(textElement);
+                            return;
+                        } else if (textElement.getBounds().contains(localPoint)) {
+                            // 点在框内但不在文字上：只选中，允许拖动移动
+                            panel.selectedElement = textElement;
+                            panel.currentState = State.MOVING;
+                            panel.lastMousePoint = logicalPoint;
+                            panel.repaint();
+                            return;
+                        }
                 }
+
                 // ClickCount != 2 || 非文本元素，移动处理
                 else {
                     // 再次点击的元素需与当前选中元素相同
@@ -479,6 +521,11 @@ public class SlideEditorPanel extends JPanel {
 
             if (currentState == State.ROTATING && selectedElement != null) {
                 double finalRotation = selectedElement.getRotation();
+                if (selectedElement instanceof LineElement) {
+                    currentState = State.IDLE;
+                    panel.setCursor(Cursor.getDefaultCursor());
+                    return;
+                }
                 if (finalRotation != originalRotation) {
                     double oldRot = originalRotation;
                     Command cmd = new ChangeElementPropertyCommand(
@@ -550,7 +597,6 @@ public class SlideEditorPanel extends JPanel {
                     Point end = line.getEndPoint();
                     center = new Point((start.x + end.x) / 2, (start.y + end.y) / 2);
                 }
-
                 double angle = Math.toDegrees(Math.atan2(logicalPoint.y - center.y, logicalPoint.x - center.x));
                 panel.selectedElement.setRotation(angle + 90);
                 panel.repaint();
@@ -564,14 +610,44 @@ public class SlideEditorPanel extends JPanel {
                 int dy = localPoint.y - lastLocalPoint.y;
 
                 if (panel.selectedElement instanceof LineElement) {
+                    
                     LineElement line = (LineElement) panel.selectedElement;
-                    if (panel.activeHandle == 0) {
-                        line.moveStartPoint(dx, dy);
-                    } else if (panel.activeHandle == 1) {
-                        line.moveEndPoint(dx, dy);
+                   if(line.getRotation()==0){
+                        if (panel.activeHandle == 0) {
+                            
+                            line.moveStartPoint(dx, dy);
+                        } else if (panel.activeHandle == 1) {
+                            line.moveEndPoint(dx, dy);
+                        }
                     }
+                    else{
+                        Point distance=rotateVector(new Point(dx,dy), panel.selectedElement.getRotation());
+                        if (panel.activeHandle == 0) {
+                            
+                            line.moveStartPoint(distance.x, distance.y);
+                        } else if (panel.activeHandle == 1) {
+                            line.moveEndPoint(distance.x, distance.y);
+                        }
+                    }
+                  
                 } else {
-                    resizeRectElement(dx, dy);
+                    if(panel.selectedElement.getRotation()==0) {
+                          boolean keepAspect = e.isShiftDown() && originalRectBounds != null;
+                            resizeRectElement(dx, dy, keepAspect);
+                    }
+                    else{
+                        Point oldCenter = panel.selectedElement.getRotationCenter();
+                        boolean keepAspect = e.isShiftDown() && originalRectBounds != null;
+                        resizeRectElement(dx, dy, keepAspect);
+
+                        // 缩放后校正位置以保持原旋转中心不变
+                        Point newCenter = panel.selectedElement.getRotationCenter();
+                        int fixDx =  newCenter.x- oldCenter.x;
+                        int fixDy = newCenter.y-oldCenter.y;
+                        Point distance=rotateVector(new Point(fixDx,fixDy), panel.selectedElement.getRotation());
+                        
+                        panel.selectedElement.move(distance.x-fixDx, distance.y-fixDy); // 或 translate 方法
+                    }
                 }
             } else if (panel.currentState == State.MOVING && panel.selectedElement != null) {
                 int dx = logicalPoint.x - panel.lastMousePoint.x;
@@ -588,7 +664,7 @@ public class SlideEditorPanel extends JPanel {
             Point logicalPoint = panel.toLogical(e.getPoint());
             Point localPoint = getLocalPoint(logicalPoint);
 
-            if (panel.selectedElement != null) {
+            if (panel.selectedElement != null&&!(panel.selectedElement instanceof LineElement)) {
                 Rectangle rotationHandle = panel.getRotationHandleBounds(panel.selectedElement);
                 if (rotationHandle.contains(localPoint)) {
                     panel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -607,7 +683,8 @@ public class SlideEditorPanel extends JPanel {
                     panel.updateResizeHandlesForRect();
                     for (int i = 0; i < 8; i++) {
                         if (panel.resizeHandles[i].contains(localPoint)) {
-                            panel.setCursor(getResizeCursor(i));
+                            double rotation = panel.selectedElement != null ? panel.selectedElement.getRotation() : 0;
+                            panel.setCursor(getResizeCursor(i, rotation));
                             return;
                         }
                     }
@@ -637,22 +714,35 @@ public class SlideEditorPanel extends JPanel {
         }
 
         // 根据控制点索引获取对应的调整大小光标
-        private Cursor getResizeCursor(int handleIndex) {
-            return switch (handleIndex) {
-                case 0 -> Cursor.getPredefinedCursor(Cursor.NW_RESIZE_CURSOR);
-                case 1 -> Cursor.getPredefinedCursor(Cursor.N_RESIZE_CURSOR);
-                case 2 -> Cursor.getPredefinedCursor(Cursor.NE_RESIZE_CURSOR);
-                case 3 -> Cursor.getPredefinedCursor(Cursor.E_RESIZE_CURSOR);
-                case 4 -> Cursor.getPredefinedCursor(Cursor.SE_RESIZE_CURSOR);
-                case 5 -> Cursor.getPredefinedCursor(Cursor.S_RESIZE_CURSOR);
-                case 6 -> Cursor.getPredefinedCursor(Cursor.SW_RESIZE_CURSOR);
-                case 7 -> Cursor.getPredefinedCursor(Cursor.W_RESIZE_CURSOR);
+        private Cursor getResizeCursor(int handleIndex, double rotationDegrees) {
+            // 先获取基础方向向量，再按元素旋转角度旋转向量，映射到最近的8方向光标
+            int[][] dirs = {
+                    { -1, -1 }, { 0, -1 }, { 1, -1 },
+                    { 1, 0 }, { 1, 1 }, { 0, 1 },
+                    { -1, 1 }, { -1, 0 }
+            };
+            int[] vec = dirs[handleIndex % dirs.length];
+            double rad = Math.toRadians(rotationDegrees);
+            double rx = vec[0] * Math.cos(rad) - vec[1] * Math.sin(rad);
+            double ry = vec[0] * Math.sin(rad) + vec[1] * Math.cos(rad);
+            double angle = Math.atan2(ry, rx); // -pi..pi
+            if (angle < 0) angle += Math.PI * 2;
+            int dirIndex = (int) Math.round(angle / (Math.PI / 4)) % 8;
+            return switch (dirIndex) {
+                case 0 -> Cursor.getPredefinedCursor(Cursor.E_RESIZE_CURSOR);   // 0 deg
+                case 1 -> Cursor.getPredefinedCursor(Cursor.SE_RESIZE_CURSOR);  // 45
+                case 2 -> Cursor.getPredefinedCursor(Cursor.S_RESIZE_CURSOR);   // 90
+                case 3 -> Cursor.getPredefinedCursor(Cursor.SW_RESIZE_CURSOR);  // 135
+                case 4 -> Cursor.getPredefinedCursor(Cursor.W_RESIZE_CURSOR);   // 180
+                case 5 -> Cursor.getPredefinedCursor(Cursor.NW_RESIZE_CURSOR);  // 225
+                case 6 -> Cursor.getPredefinedCursor(Cursor.N_RESIZE_CURSOR);   // 270
+                case 7 -> Cursor.getPredefinedCursor(Cursor.NE_RESIZE_CURSOR);  // 315
                 default -> Cursor.getDefaultCursor();
             };
         }
-
+        
         // 调整矩形元素大小
-        private void resizeRectElement(int dx, int dy) {
+        private void resizeRectElement(int dx, int dy, boolean keepAspect) {
             Rectangle bounds = panel.selectedElement.getBounds();
             int minSize = 20;
             switch (panel.activeHandle) {
@@ -695,6 +785,64 @@ public class SlideEditorPanel extends JPanel {
                 bounds.width = minSize;
             if (bounds.height < minSize)
                 bounds.height = minSize;
+            if (keepAspect && originalRectBounds != null && bounds.width > 0 && bounds.height > 0) {
+                double aspect = originalRectBounds.getHeight() / (double) originalRectBounds.getWidth();
+                switch (panel.activeHandle) {
+                    case 0 -> { // 左上锚在右下
+                        int anchorX = bounds.x + bounds.width;
+                        int anchorY = bounds.y + bounds.height;
+                        bounds.height = (int) Math.round(bounds.width * aspect);
+                        bounds.x = anchorX - bounds.width;
+                        bounds.y = anchorY - bounds.height;
+                    }
+                    case 1 -> { // 上中，锚在下中
+                        int anchorX = bounds.x + bounds.width / 2;
+                        int anchorY = bounds.y + bounds.height;
+                        bounds.width = (int) Math.round(bounds.height / aspect);
+                        bounds.x = anchorX - bounds.width / 2;
+                        bounds.y = anchorY - bounds.height;
+                    }
+                    case 2 -> { // 右上，锚在左下
+                        int anchorX = bounds.x;
+                        int anchorY = bounds.y + bounds.height;
+                        bounds.height = (int) Math.round(bounds.width * aspect);
+                        bounds.y = anchorY - bounds.height;
+                        // x 保持左侧锚不变
+                    }
+                    case 3 -> { // 右中，锚在左中
+                        int anchorY = bounds.y + bounds.height / 2;
+                        bounds.height = (int) Math.round(bounds.width * aspect);
+                        bounds.y = anchorY - bounds.height / 2;
+                    }
+                    case 4 -> { // 右下，锚在左上
+                        bounds.height = (int) Math.round(bounds.width * aspect);
+                        // x,y 保持左上锚不变
+                    }
+                    case 5 -> { // 下中，锚在上中
+                        int anchorX = bounds.x + bounds.width / 2;
+                        bounds.width = (int) Math.round(bounds.height / aspect);
+                        bounds.x = anchorX - bounds.width / 2;
+                    }
+                    case 6 -> { // 左下，锚在右上
+                        int anchorX = bounds.x + bounds.width;
+                        int anchorY = bounds.y;
+                        bounds.height = (int) Math.round(bounds.width * aspect);
+                        bounds.x = anchorX - bounds.width;
+                        // y 保持右上锚不变
+                    }
+                    case 7 -> { // 左中，锚在右中
+                        int anchorY = bounds.y + bounds.height / 2;
+                        int anchorX = bounds.x + bounds.width;
+                        bounds.height = (int) Math.round(bounds.width * aspect);
+                        bounds.x = anchorX - bounds.width;
+                        bounds.y = anchorY - bounds.height / 2;
+                    }
+                }
+                if (bounds.width < minSize)
+                    bounds.width = minSize;
+                if (bounds.height < minSize)
+                    bounds.height = minSize;
+            }
             panel.selectedElement.setBounds(bounds);
         }
 
@@ -721,11 +869,11 @@ public class SlideEditorPanel extends JPanel {
                 JPopupMenu contextMenu = new JPopupMenu();
 
                 JMenuItem deleteItem = new JMenuItem("删除");
-                deleteItem.addActionListener(_ -> panel.deleteSelectedElement());
+                deleteItem.addActionListener(evt-> panel.deleteSelectedElement());
                 contextMenu.add(deleteItem);
-
+                if( !(panel.selectedElement instanceof LineElement)){
                 JMenuItem rotateItem = new JMenuItem("旋转...");
-                rotateItem.addActionListener(_ -> {
+                rotateItem.addActionListener(evt -> {
                     String input = JOptionPane.showInputDialog(panel, "请输入旋转角度 (度):",
                             panel.selectedElement.getRotation());
                     if (input != null) {
@@ -748,9 +896,9 @@ public class SlideEditorPanel extends JPanel {
                 contextMenu.add(rotateItem);
 
                 contextMenu.addSeparator();
-
+            }
                 JMenuItem bringToFrontItem = new JMenuItem("置于顶层");
-                bringToFrontItem.addActionListener(_ -> {
+                bringToFrontItem.addActionListener(evt -> {
                     PresentationApp app = (PresentationApp) SwingUtilities.getWindowAncestor(panel);
                     if (app != null) {
                         Command cmd = new BringToFrontCommand(panel.currentPage, panel.selectedElement);
@@ -761,7 +909,7 @@ public class SlideEditorPanel extends JPanel {
                 contextMenu.add(bringToFrontItem);
 
                 JMenuItem sendToBackItem = new JMenuItem("置于底层");
-                sendToBackItem.addActionListener(_ -> {
+                sendToBackItem.addActionListener(evt -> {
                     PresentationApp app = (PresentationApp) SwingUtilities.getWindowAncestor(panel);
                     if (app != null) {
                         Command cmd = new SendToBackCommand(panel.currentPage, panel.selectedElement);
@@ -774,17 +922,28 @@ public class SlideEditorPanel extends JPanel {
                 contextMenu.addSeparator();
 
                 JMenuItem colorItem = new JMenuItem("修改颜色...");
-                colorItem.addActionListener(_ -> {
-                    Color newColor = JColorChooser.showDialog(panel, "选择颜色", Color.BLACK);
+                colorItem.addActionListener(evt -> {
+                    Color newColor = pickColor(panel.selectedElement);
                     if (newColor != null) {
                         PresentationApp app = (PresentationApp) SwingUtilities.getWindowAncestor(panel);
                         if (app != null) {
                             SlideElement selected = panel.selectedElement;
                             if (selected instanceof TextElement textElem) {
-                                Color oldColor = textElem.getColor();
-                                Command cmd = new ChangeElementPropertyCommand(() -> textElem.setColor(newColor),
-                                        () -> textElem.setColor(oldColor));
-                                app.getUndoManager().executeCommand(cmd);
+                                Object[] options = { "文字", "边框" };
+                                int choice = JOptionPane.showOptionDialog(panel, "修改哪个部分的颜色？", "选择颜色类型",
+                                        JOptionPane.YES_NO_OPTION,
+                                        JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+                                if (choice == 0) {
+                                    Color oldColor = textElem.getColor();
+                                    Command cmd = new ChangeElementPropertyCommand(() -> textElem.setColor(newColor),
+                                            () -> textElem.setColor(oldColor));
+                                    app.getUndoManager().executeCommand(cmd);
+                                } else {
+                                    Color oldColor = textElem.getBorderColor();
+                                    Command cmd = new ChangeElementPropertyCommand(() -> textElem.setBorderColor(newColor),
+                                            () -> textElem.setBorderColor(oldColor));
+                                    app.getUndoManager().executeCommand(cmd);
+                                }
                             } else if (selected instanceof LineElement lineElem) {
                                 Color oldColor = lineElem.getColor();
                                 Command cmd = new ChangeElementPropertyCommand(() -> lineElem.setColor(newColor),
@@ -813,9 +972,9 @@ public class SlideEditorPanel extends JPanel {
                 });
                 contextMenu.add(colorItem);
 
-                if (panel.selectedElement instanceof ShapeElement || panel.selectedElement instanceof LineElement) {
+                if (panel.selectedElement instanceof ShapeElement || panel.selectedElement instanceof LineElement || panel.selectedElement instanceof TextElement) {
                     JMenuItem thicknessItem = new JMenuItem("修改粗细...");
-                    thicknessItem.addActionListener(_ -> {
+                    thicknessItem.addActionListener(evt -> {
                         PresentationApp app = (PresentationApp) SwingUtilities.getWindowAncestor(panel);
                         if (app != null) {
                             SlideElement selected = panel.selectedElement;
@@ -853,6 +1012,26 @@ public class SlideEditorPanel extends JPanel {
                                             panel.repaint();
                                         } else {
                                             JOptionPane.showMessageDialog(panel, "线条粗细必须大于0。");
+                                        }
+                                    } catch (NumberFormatException ex) {
+                                        JOptionPane.showMessageDialog(panel, "请输入有效的整数。");
+                                    }
+                                }
+                            } else if (selected instanceof TextElement textElem) {
+                                String input = JOptionPane.showInputDialog(panel, "请输入边框粗细:",
+                                        textElem.getBorderThickness());
+                                if (input != null) {
+                                    try {
+                                        int newThickness = Integer.parseInt(input);
+                                        if (newThickness >= 0) {
+                                            int oldThickness = textElem.getBorderThickness();
+                                            Command cmd = new ChangeElementPropertyCommand(
+                                                    () -> textElem.setBorderThickness(newThickness),
+                                                    () -> textElem.setBorderThickness(oldThickness));
+                                            app.getUndoManager().executeCommand(cmd);
+                                            panel.repaint();
+                                        } else {
+                                            JOptionPane.showMessageDialog(panel, "边框粗细必须大于等于0。");
                                         }
                                     } catch (NumberFormatException ex) {
                                         JOptionPane.showMessageDialog(panel, "请输入有效的整数。");
@@ -904,10 +1083,34 @@ public class SlideEditorPanel extends JPanel {
         editingElement = textElement;
 
         Rectangle bounds = textElement.getBounds();
-        int screenX = (int) (bounds.x * scaleFactor) + translateX;
-        int screenY = (int) (bounds.y * scaleFactor) + translateY;
-        int screenW = (int) (bounds.width * scaleFactor);
-        int screenH = (int) (bounds.height * scaleFactor);
+        double rotation = textElement.getRotation();
+
+        // 计算旋转后在屏幕上的包围盒，使编辑框跟随旋转后的位置
+        int x = bounds.x;
+        int y = bounds.y;
+        int w = bounds.width;
+        int h = bounds.height;
+        Point center = new Point(x + w / 2, y + h / 2);
+        Point[] corners = new Point[] {
+                new Point(x, y),
+                new Point(x + w, y),
+                new Point(x + w, y + h),
+                new Point(x, y + h)
+        };
+        double minX = Double.MAX_VALUE, minY = Double.MAX_VALUE, maxX = -Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
+        for (Point p : corners) {
+            Point rp = rotation == 0 ? p : textElement.rotatePoint(p, center, rotation);
+            double sx = rp.x * scaleFactor + translateX;
+            double sy = rp.y * scaleFactor + translateY;
+            minX = Math.min(minX, sx);
+            minY = Math.min(minY, sy);
+            maxX = Math.max(maxX, sx);
+            maxY = Math.max(maxY, sy);
+        }
+        int screenX = (int) Math.round(minX);
+        int screenY = (int) Math.round(minY);
+        int screenW = (int) Math.round(maxX - minX);
+        int screenH = (int) Math.round(maxY - minY);
 
         activeTextEditor = new JTextArea(textElement.getText());
         Font elemFont = textElement.getFont();
@@ -915,6 +1118,10 @@ public class SlideEditorPanel extends JPanel {
         activeTextEditor.setFont(scaledFont);
         activeTextEditor.setForeground(textElement.getColor());
         activeTextEditor.setBounds(screenX, screenY, screenW, screenH);
+        // 内边距按缩放计算，匹配 TextElement.draw 中的逻辑坐标 padding
+        int topPad = (int) Math.round(4 * scaleFactor);
+        int leftPad = (int) Math.round(5 * scaleFactor);
+        activeTextEditor.setMargin(new java.awt.Insets(topPad, leftPad, 0, 0));
         activeTextEditor.setOpaque(false);
         activeTextEditor.setLineWrap(true);
         activeTextEditor.setWrapStyleWord(true);
@@ -941,8 +1148,10 @@ public class SlideEditorPanel extends JPanel {
 
     public void stopEditingText() {
         if (activeTextEditor != null && editingElement != null) {
-            String newText = activeTextEditor.getText();
-            String oldText = editingElement.getText();
+             String rawText = activeTextEditor.getText();
+            // 根据空值决定占位文字，newText 不再二次赋值
+             String newText = (rawText == null || rawText.isBlank()) ? "双击以编辑文本" : rawText;
+             String oldText = editingElement.getText();
             if (!newText.equals(oldText)) {
                 PresentationApp app = (PresentationApp) SwingUtilities.getWindowAncestor(this);
                 if (app != null) {
@@ -975,7 +1184,16 @@ public class SlideEditorPanel extends JPanel {
             }
         }
     }
-
+    public Point rotateVector(Point vector, double angleDegrees) {
+        double angleRadians = Math.toRadians(angleDegrees);
+        double cos = Math.cos(angleRadians);
+        double sin = Math.sin(angleRadians);
+        
+        int newX = (int) Math.round(vector.x * cos - vector.y * sin);
+        int newY = (int) Math.round(vector.x * sin + vector.y * cos);
+        
+        return new Point(newX, newY);
+    }
     private Point getRotationHandleCenter(SlideElement element) {
         Rectangle bounds = element.getBounds();
         Point center = new Point(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
@@ -995,5 +1213,51 @@ public class SlideEditorPanel extends JPanel {
         Point p = getRotationHandleCenter(element);
         int size = (int) (ROTATION_HANDLE_SIZE / scaleFactor);
         return new Rectangle(p.x - size / 2, p.y - size / 2, size, size);
+    }
+    public void selectElement(SlideElement element) {
+    stopEditingText();      // 可选：先结束其他编辑
+    this.selectedElement = element;
+    this.repaint();
+    }
+    // 计算文本内容实际占用的矩形（逻辑坐标）
+    private Rectangle getTextContentBounds(TextElement t, Graphics g) {
+        FontMetrics fm = g.getFontMetrics(t.getFont());
+        // 与 TextElement.draw 的换行规则一致
+        int maxWidth = t.getBounds().width - 10;
+        java.util.List<String> lines = new java.util.ArrayList<>();
+        for (String para : t.getText().split("\n", -1)) {
+            if (para.isEmpty()) { lines.add(""); continue; }
+                StringBuilder line = new StringBuilder();
+                    for (char c : para.toCharArray()) {
+                         String test = line.toString() + c;
+                         if (fm.stringWidth(test) > maxWidth && line.length() > 0) {
+                             lines.add(line.toString());
+                             line = new StringBuilder().append(c);
+                         } else {
+                             line.append(c);
+                         }
+                     }
+                    if (line.length() > 0) lines.add(line.toString());
+                     }
+        int lineHeight = fm.getHeight();
+        int contentHeight = lines.size() * lineHeight;
+        int x = t.getBounds().x + 5;
+        int y = t.getBounds().y + fm.getAscent(); // 顶部对齐
+        return new Rectangle(x, y - fm.getAscent(), maxWidth, contentHeight);
+    }
+
+    /**
+     * 颜色选择器，附带预览，尽量贴近 PPT 的体验
+     */
+    private Color pickColor(SlideElement target) {
+        Color initial = Color.BLACK;
+        if (target instanceof TextElement textElem) {
+            initial = textElem.getColor();
+        } else if (target instanceof LineElement lineElem) {
+            initial = lineElem.getColor();
+        } else if (target instanceof ShapeElement shape) {
+            initial = shape.getBorderColor();
+        }
+        return NewColorPickerDialog.pickColor(this, initial, "选择颜色");
     }
 }

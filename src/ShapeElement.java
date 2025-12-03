@@ -1,5 +1,5 @@
 import java.awt.*;
-
+                                              
 public abstract class ShapeElement extends SlideElement {
     protected Color fillColor;
     protected Color borderColor;
@@ -17,7 +17,13 @@ public abstract class ShapeElement extends SlideElement {
         this.fillColor = fillColor;
         this.borderThickness = borderThickness;
         this.dashArray = null; // Default to solid line
+         // 设置旋转中心为几何中心
+        this.rotationCenter = new Point(x + width / 2, y + height / 2);
     }
+    @Override
+public Point getRotationCenter() {
+    return new Point(x + width / 2, y + height / 2);
+}
 
     @Override
     public boolean contains(Point p) {

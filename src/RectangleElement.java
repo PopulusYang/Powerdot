@@ -6,7 +6,7 @@ public class RectangleElement extends ShapeElement {
             int borderThickness) {
         super(x, y, width, height, borderColor, fillColor, borderThickness);
     }
-
+    
     @Override
     public void draw(Graphics g) {
         Graphics2D g2d = (Graphics2D) g.create();

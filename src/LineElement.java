@@ -18,7 +18,7 @@ public class LineElement extends SlideElement {
         this.color = color;
         this.thickness = thickness;
     }
-
+    
     @Override
     public void draw(Graphics g) {
         Graphics2D g2d = (Graphics2D) g.create();
@@ -125,5 +125,12 @@ public class LineElement extends SlideElement {
         this.y = start.y;
         this.x2 = end.x;
         this.y2 = end.y;
+         this.rotationCenter = new Point((x + x2) / 2, (y + y2) / 2);
     }
+    @Override
+    public Point getRotationCenter() {
+    return new Point((x + x2) / 2, (y + y2) / 2);
+     // 获取起点坐标
+   
+}
 }

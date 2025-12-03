@@ -7,12 +7,12 @@ import java.io.Serializable;
 public abstract class SlideElement implements Serializable {
     protected int x, y;
     protected double rotation = 0; // Rotation in degrees
-
+    protected Point rotationCenter;
     public SlideElement(int x, int y) {
         this.x = x;
         this.y = y;
+        this.rotationCenter = new Point(x, y); 
     }
-
     public abstract void draw(Graphics g);// 绘制元素
 
     public abstract boolean contains(Point p);// 判断点是否在元素内
@@ -33,7 +33,7 @@ public abstract class SlideElement implements Serializable {
     public void setRotation(double rotation) {
         this.rotation = rotation;
     }
-
+    
     protected Point rotatePoint(Point p, Point center, double angleDegrees) {
         double angleRadians = Math.toRadians(angleDegrees);
         double cos = Math.cos(angleRadians);
@@ -44,4 +44,12 @@ public abstract class SlideElement implements Serializable {
         int newY = center.y + (int) (dx * sin + dy * cos);
         return new Point(newX, newY);
     }
+    // 新增方法用于访问旋转中心
+public Point getRotationCenter() {
+    return rotationCenter;
+}
+
+public void setRotationCenter(Point center) {
+    this.rotationCenter = center;
+}
 }
