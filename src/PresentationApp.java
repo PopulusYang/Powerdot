@@ -1082,7 +1082,7 @@ private void setNoBorder() {
         Color fallback = baseColor != null ? baseColor : Color.WHITE;
         return NewColorPickerDialog.pickColor(this, fallback, title);
     }
-
+    // 显示页面背景设置对话框
     private void showPageBackgroundDialog() {
         SlidePage currentPage = editorPanel.getCurrentPage();
         if (currentPage == null)

@@ -104,6 +104,8 @@ public class SlidePreviewPanel extends JPanel {
                     BufferedImage image = ImageIO.read(file);
                     if (image != null) {
                         page.setBackgroundImage(image);
+                        // 当通过预览面板直接更改背景图片时，自动切换为拉伸模式以立即可见
+                        page.setBackgroundMode(SlidePage.BackgroundMode.IMAGE_STRETCH);
                         refreshPreviews();
                         app.repaint();
                     } else {
